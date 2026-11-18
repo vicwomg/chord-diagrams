@@ -99,6 +99,17 @@
   const STRING_GAP = 22;
   const FRET_HEIGHT = 28;
   const DOT_RADIUS = 8.5;
+  const DOT_COLORS = {
+    black: '#000000',
+    grey: '#808080',
+    red: '#dc2626',
+    blue: '#2563eb',
+    green: '#16a34a',
+    purple: '#9333ea',
+    brown: '#7c2d12',
+    yellow: '#eab308',
+    white: '#ffffff',
+  };
 
   function createEmptyDiagram() {
     return {
@@ -135,7 +146,7 @@
     if (raw && typeof raw === 'object') {
       return {
         finger: typeof raw.finger === 'string' ? raw.finger : '',
-        color: raw.color === 'grey' ? 'grey' : 'black',
+        color: DOT_COLORS[raw.color] ? raw.color : 'black',
       };
     }
     return { finger: '', color: 'black' };
@@ -147,6 +158,7 @@
         title: '',
         count: 16,
         extraFret: false,
+        leftHanded: false,
         instrument: 'guitar',
         activeSetName: '',
         diagrams: Array.from({ length: MAX_DIAGRAMS }, createEmptyDiagram),
@@ -183,6 +195,7 @@
       title: typeof parsed.title === 'string' ? parsed.title : '',
       count: [4, 8, 12, 16, 20].includes(parsed.count) ? parsed.count : 16,
       extraFret: Boolean(parsed.extraFret),
+      leftHanded: Boolean(parsed.leftHanded),
       instrument: INSTRUMENTS[parsed.instrument] ? parsed.instrument : 'guitar',
       activeSetName: typeof parsed.activeSetName === 'string' ? parsed.activeSetName : '',
       diagrams,
@@ -244,17 +257,22 @@
   let savedSets = loadSavedSets();
   let activeTarget = null; // { diagramIdx, stringIdx, fretRow }
   let copiedDiagram = null;
+  let lastLongPressAt = 0;
 
   const pageTitleEl = document.getElementById('pageTitle');
   const instrumentSelectEl = document.getElementById('instrumentSelect');
   const diagramCountEl = document.getElementById('diagramCount');
   const extraFretToggleEl = document.getElementById('extraFretToggle');
+  const leftHandedToggleEl = document.getElementById('leftHandedToggle');
   const saveSetBtn = document.getElementById('saveSetBtn');
   const openSetBtn = document.getElementById('openSetBtn');
   const chordGridEl = document.getElementById('chordGrid');
   const clearAllBtn = document.getElementById('clearAllBtn');
+  const downloadPdfBtn = document.getElementById('downloadPdfBtn');
   const printBtn = document.getElementById('printBtn');
   const fingerMenuEl = document.getElementById('fingerMenu');
+  const fingerCustomInputEl = document.getElementById('fingerCustomInput');
+  const fingerCustomApplyBtn = document.getElementById('fingerCustomApplyBtn');
   const helpBtn = document.getElementById('helpBtn');
   const helpModalEl = document.getElementById('helpModal');
   const helpCloseBtn = document.getElementById('helpCloseBtn');
@@ -267,6 +285,7 @@
     instrumentSelectEl.value = state.instrument;
     diagramCountEl.value = String(state.count);
     extraFretToggleEl.checked = state.extraFret;
+    leftHandedToggleEl.checked = state.leftHanded;
   }
 
   function renderSavedSetsList() {
@@ -349,7 +368,7 @@
   function getLayoutMetrics() {
     const inst = INSTRUMENTS[state.instrument];
     const labeled = inst.labeled !== false;
-    const yTop = labeled ? 47 : 22;
+    const yTop = labeled ? 35 : 22;
     const numFrets = state.extraFret ? 5 : 4;
     const svgWidth = inst.svgWidth || 156;
     const svgHeight = yTop + numFrets * FRET_HEIGHT + 16;
@@ -362,8 +381,8 @@
       numFrets,
       svgWidth,
       svgHeight,
-      omY: labeled ? 36.5 : 11.5,
-      hitHeight: labeled ? 43 : 19,
+      omY: labeled ? 24.5 : 11.5,
+      hitHeight: labeled ? 31 : 19,
     };
   }
 
@@ -393,25 +412,14 @@
 
     // String headers and optional O / X
     for (let s = 0; s < numStrings; s++) {
-      const x = xStart + s * STRING_GAP;
+      const displayS = state.leftHanded ? numStrings - 1 - s : s;
+      const x = xStart + displayS * STRING_GAP;
       const headerGroup = svgEl('g', { class: 'string-header-group' });
 
       if (labeled) {
-        const numText = svgEl('text', {
-          x,
-          y: 12,
-          'text-anchor': 'middle',
-          'font-size': '10',
-          'font-weight': '700',
-          fill: '#9ca3af',
-          class: 'string-label-text',
-        });
-        numText.textContent = inst.stringNums[s];
-        headerGroup.appendChild(numText);
-
         const nameText = svgEl('text', {
           x,
-          y: 25,
+          y: 13,
           'text-anchor': 'middle',
           'font-size': '10.5',
           'font-weight': '700',
@@ -525,7 +533,8 @@
     for (let f = 1; f <= numFrets; f++) {
       const cy = yTop + (f - 0.5) * FRET_HEIGHT;
       for (let s = 0; s < numStrings; s++) {
-        const cx = xStart + s * STRING_GAP;
+        const displayS = state.leftHanded ? numStrings - 1 - s : s;
+        const cx = xStart + displayS * STRING_GAP;
         const key = `${s}-${f}`;
         const dot = getDot(diagram, key);
 
@@ -539,22 +548,27 @@
             class: 'fret-hover',
           }));
         } else {
-          cellGroup.appendChild(svgEl('circle', {
+          const dotAttrs = {
             cx,
             cy,
             r: DOT_RADIUS,
-            fill: dot.color === 'grey' ? '#808080' : '#000000',
-          }));
+            fill: DOT_COLORS[dot.color] || DOT_COLORS.black,
+          };
+          if (dot.color === 'white') {
+            dotAttrs.stroke = '#000000';
+            dotAttrs['stroke-width'] = '1.5';
+          }
+          cellGroup.appendChild(svgEl('circle', dotAttrs));
 
           if (dot.finger) {
             const label = svgEl('text', {
               x: cx,
-              y: cy + 0.5,
+              y: cy,
+              dy: '0.35em',
               'text-anchor': 'middle',
-              'dominant-baseline': 'central',
-              'font-size': '11',
+              'font-size': dot.finger.length > 1 ? '9.5' : '11',
               'font-weight': '700',
-              fill: '#ffffff',
+              fill: dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff',
               'pointer-events': 'none',
             });
             label.textContent = dot.finger;
@@ -570,8 +584,66 @@
           class: 'fret-hit',
         });
 
+        let longPressTimer = null;
+        let longPressTriggered = false;
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        hitRect.addEventListener(
+          'touchstart',
+          (e) => {
+            if (e.touches.length !== 1) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+              return;
+            }
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            longPressTriggered = false;
+            clearTimeout(longPressTimer);
+            longPressTimer = setTimeout(() => {
+              longPressTimer = null;
+              longPressTriggered = true;
+              lastLongPressAt = Date.now();
+              openFingerMenu(touchStartX, touchStartY, diagramIdx, s, f);
+            }, 450);
+          },
+          { passive: true }
+        );
+
+        hitRect.addEventListener(
+          'touchmove',
+          (e) => {
+            if (!longPressTimer || e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            if (Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY) > 10) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          },
+          { passive: true }
+        );
+
+        const cancelTouchPress = (e) => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+          if (longPressTriggered && e.type === 'touchend') {
+            e.preventDefault();
+          }
+        };
+
+        hitRect.addEventListener('touchend', cancelTouchPress);
+        hitRect.addEventListener('touchcancel', cancelTouchPress);
+
         hitRect.addEventListener('click', (e) => {
           e.stopPropagation();
+          if (longPressTriggered || Date.now() - lastLongPressAt < 400) {
+            longPressTriggered = false;
+            return;
+          }
           closeFingerMenu();
           if (Object.prototype.hasOwnProperty.call(diagram.dots, key)) {
             delete diagram.dots[key];
@@ -810,6 +882,7 @@
     fingerMenuEl.querySelectorAll('.color-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.color === currentColor);
     });
+    fingerCustomInputEl.value = currentFinger || '';
 
     fingerMenuEl.classList.add('open');
     fingerMenuEl.setAttribute('aria-hidden', 'false');
@@ -828,7 +901,7 @@
     fingerMenuEl.setAttribute('aria-hidden', 'true');
   }
 
-  function applyFingerValue(value) {
+  function applyFingerValue(value, { close = true } = {}) {
     if (!activeTarget) return;
     const { diagramIdx, stringIdx, fretRow } = activeTarget;
     const key = `${stringIdx}-${fretRow}`;
@@ -839,14 +912,14 @@
     } else {
       const existing = getDot(diagram, key);
       diagram.dots[key] = {
-        finger: value,
+        finger: String(value).slice(0, 2),
         color: existing ? existing.color : 'black',
       };
     }
 
     saveState();
     renderSingleDiagram(diagramIdx);
-    closeFingerMenu();
+    if (close) closeFingerMenu();
   }
 
   function applyDotColor(color) {
@@ -858,7 +931,7 @@
 
     diagram.dots[key] = {
       finger: existing ? existing.finger : '',
-      color: color === 'grey' ? 'grey' : 'black',
+      color: DOT_COLORS[color] ? color : 'black',
     };
 
     saveState();
@@ -887,6 +960,26 @@
     }
   });
 
+  fingerCustomInputEl.addEventListener('input', (e) => {
+    const val = e.target.value.slice(0, 2);
+    if (e.target.value !== val) e.target.value = val;
+    applyFingerValue(val, { close: false });
+  });
+
+  fingerCustomInputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyFingerValue(fingerCustomInputEl.value.slice(0, 2));
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeFingerMenu();
+    }
+  });
+
+  fingerCustomApplyBtn.addEventListener('click', () => {
+    applyFingerValue(fingerCustomInputEl.value.slice(0, 2));
+  });
+
   document.addEventListener('click', (e) => {
     if (!fingerMenuEl.contains(e.target)) {
       closeFingerMenu();
@@ -895,6 +988,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (!activeTarget) return;
+    if (e.target === fingerCustomInputEl) return;
     const key = e.key.toUpperCase();
     if (['1', '2', '3', '4', 'T'].includes(key)) {
       e.preventDefault();
@@ -928,6 +1022,12 @@
 
   extraFretToggleEl.addEventListener('change', (e) => {
     state.extraFret = e.target.checked;
+    saveState();
+    renderGrid();
+  });
+
+  leftHandedToggleEl.addEventListener('change', (e) => {
+    state.leftHanded = e.target.checked;
     saveState();
     renderGrid();
   });
@@ -966,6 +1066,47 @@
     pageTitleEl.value = '';
     saveState();
     renderGrid();
+  });
+
+  downloadPdfBtn.addEventListener('click', () => {
+    closeFingerMenu();
+    if (typeof html2pdf === 'undefined') {
+      alert('PDF library failed to load. Opening the print dialog instead so you can save as PDF.');
+      window.print();
+      return;
+    }
+
+    const sheetEl = document.querySelector('.sheet');
+    const rawTitle = state.title.trim();
+    const safeName = rawTitle
+      ? rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      : 'chord-diagrams';
+    const filename = `${safeName || 'chord-diagrams'}.pdf`;
+
+    downloadPdfBtn.disabled = true;
+    const prevLabel = downloadPdfBtn.textContent;
+    downloadPdfBtn.textContent = 'Exporting...';
+    document.body.classList.add('pdf-exporting');
+
+    html2pdf()
+      .set({
+        margin: [0.35, 0.4, 0.35, 0.4],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      })
+      .from(sheetEl)
+      .save()
+      .catch(() => {
+        alert('Could not generate PDF directly. Opening the print dialog instead.');
+        window.print();
+      })
+      .finally(() => {
+        document.body.classList.remove('pdf-exporting');
+        downloadPdfBtn.disabled = false;
+        downloadPdfBtn.textContent = prevLabel;
+      });
   });
 
   printBtn.addEventListener('click', () => {

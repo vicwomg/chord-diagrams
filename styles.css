@@ -128,6 +128,13 @@ body {
   background: #f9fafb;
 }
 
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -346,6 +353,8 @@ body {
   width: 100%;
   height: auto;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Starting fret input positioned at left side of fret 1 */
@@ -392,6 +401,8 @@ body {
 .fret-hit {
   fill: transparent;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
 
 .fret-hover {
@@ -465,13 +476,53 @@ body {
   transform: scale(1.06);
 }
 
+.finger-menu-custom {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.finger-custom-input {
+  width: 108px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: #ffffff;
+  outline: none;
+}
+
+.finger-custom-input:focus {
+  border-color: var(--accent);
+}
+
+.finger-custom-apply {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.finger-custom-apply:hover {
+  background: #e5e7eb;
+}
+
 .finger-btn.active {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
 
 .finger-menu-colors {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
@@ -513,6 +564,35 @@ body {
 
 .color-swatch.grey {
   background: #808080;
+}
+
+.color-swatch.red {
+  background: #dc2626;
+}
+
+.color-swatch.blue {
+  background: #2563eb;
+}
+
+.color-swatch.green {
+  background: #16a34a;
+}
+
+.color-swatch.purple {
+  background: #9333ea;
+}
+
+.color-swatch.brown {
+  background: #7c2d12;
+}
+
+.color-swatch.yellow {
+  background: #eab308;
+}
+
+.color-swatch.white {
+  background: #ffffff;
+  border: 1px solid #000000;
 }
 
 .finger-menu-actions {
@@ -704,6 +784,83 @@ body {
   .chord-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Direct PDF export layout (mirrors print output) */
+body.pdf-exporting .no-print {
+  display: none !important;
+}
+
+body.pdf-exporting .sheet {
+  width: 7.7in;
+  min-height: auto;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+body.pdf-exporting .sheet-header {
+  margin-bottom: 10px;
+}
+
+body.pdf-exporting .page-title-input {
+  border: none !important;
+  padding: 0;
+  font-size: 20px;
+}
+
+body.pdf-exporting .page-title-input::placeholder,
+body.pdf-exporting .chord-name-input::placeholder {
+  color: transparent;
+}
+
+body.pdf-exporting .chord-grid {
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 10px 14px;
+}
+
+body.pdf-exporting .chord-name-input {
+  border: none !important;
+  background: transparent !important;
+  font-size: 13px;
+  margin-bottom: 1px;
+}
+
+body.pdf-exporting .diagram-wrap {
+  max-width: 148px;
+}
+
+body.pdf-exporting .chord-grid.count-20 {
+  gap: 6px 12px;
+}
+
+body.pdf-exporting .chord-grid.count-20 .chord-name-input {
+  font-size: 12px;
+}
+
+body.pdf-exporting .chord-grid.count-20 .diagram-wrap {
+  max-width: 132px;
+}
+
+body.pdf-exporting .chord-grid.count-20.extra-fret .diagram-wrap {
+  max-width: 118px;
+}
+
+body.pdf-exporting .start-fret-input {
+  display: none !important;
+}
+
+body.pdf-exporting .start-fret-svg-label {
+  display: block !important;
+}
+
+body.pdf-exporting .fret-hover {
+  display: none !important;
+}
+
+body.pdf-exporting .chord-card.is-deleted:hover {
+  outline: none;
 }
 
 /* Print Styles */

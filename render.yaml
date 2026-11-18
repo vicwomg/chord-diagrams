@@ -7,6 +7,9 @@ services:
       - path: /*.js
         name: Content-Type
         value: application/javascript; charset=utf-8
+      - path: /vendor/*.js
+        name: Content-Type
+        value: application/javascript; charset=utf-8
       - path: /*.css
         name: Content-Type
         value: text/css; charset=utf-8
