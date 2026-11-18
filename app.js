@@ -47,6 +47,19 @@
       stringNums: ['4', '3', '2', '1'],
       stringNames: ['C', 'G', 'B', 'D'],
     },
+    'cuban-tres': {
+      label: 'Cuban Tres',
+      numStrings: 3,
+      xStart: 65,
+      stringNums: ['3', '2', '1'],
+      stringNames: ['G', 'C', 'E'],
+    },
+    'unlabeled-3': {
+      label: '3-string',
+      numStrings: 3,
+      xStart: 65,
+      labeled: false,
+    },
     'unlabeled-4': {
       label: '4-string',
       numStrings: 4,
