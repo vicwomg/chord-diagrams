@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chord Diagrams</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="toolbar no-print">
+    <div class="toolbar-left">
+      <h1 class="app-name">Chord Diagrams</h1>
+      <button type="button" id="helpBtn" class="btn btn-secondary help-btn" aria-label="Instructions" title="Instructions">?</button>
+    </div>
+    <div class="toolbar-controls">
+      <label class="control-group">
+        <select id="instrumentSelect" aria-label="Instrument">
+          <optgroup label="Tuned">
+            <option value="guitar" selected>Guitar (6-string)</option>
+            <option value="ukulele">Ukulele (4-string)</option>
+            <option value="mandolin">Mandolin (4-course)</option>
+            <option value="banjo">Banjo (5-string Open G)</option>
+            <option value="tenor-banjo">Tenor Banjo (4-string CGDA)</option>
+            <option value="plectrum-banjo">Plectrum Banjo (4-string CGBD)</option>
+          </optgroup>
+          <optgroup label="Unlabeled">
+            <option value="unlabeled-4">4-string (Unlabeled)</option>
+            <option value="unlabeled-5">5-string (Unlabeled)</option>
+            <option value="unlabeled-6">6-string (Unlabeled)</option>
+            <option value="unlabeled-7">7-string (Unlabeled)</option>
+            <option value="unlabeled-8">8-string (Unlabeled)</option>
+          </optgroup>
+        </select>
+      </label>
+      <label class="control-group">
+        <select id="diagramCount" aria-label="Diagrams per sheet">
+          <option value="4">4 (1 row)</option>
+          <option value="8">8 (2 rows)</option>
+          <option value="12">12 (3 rows)</option>
+          <option value="16" selected>16 (4×4 page)</option>
+          <option value="20">20 (4×5 page)</option>
+        </select>
+      </label>
+      <label class="control-group checkbox-group">
+        <input type="checkbox" id="extraFretToggle" />
+        <span>5 frets</span>
+      </label>
+      <button type="button" id="saveSetBtn" class="btn btn-secondary">Save</button>
+      <button type="button" id="openSetBtn" class="btn btn-secondary">Open</button>
+      <button type="button" id="clearAllBtn" class="btn btn-secondary">Clear All</button>
+      <button type="button" id="printBtn" class="btn btn-primary">Print</button>
+    </div>
+  </header>
+
+  <main class="page-wrapper">
+    <section class="sheet" aria-label="Printable Chord Sheet">
+      <div class="sheet-header">
+        <input
+          type="text"
+          id="pageTitle"
+          class="page-title-input"
+          placeholder="Page Title (optional)"
+          aria-label="Page Title"
+        />
+      </div>
+
+      <div id="chordGrid" class="chord-grid"></div>
+    </section>
+  </main>
+
+  <!-- Right-click fingering popover -->
+  <div id="fingerMenu" class="finger-menu no-print" role="menu" aria-hidden="true">
+    <div class="finger-menu-title">Fingering</div>
+    <div class="finger-menu-buttons">
+      <button type="button" class="finger-btn" data-finger="1">1</button>
+      <button type="button" class="finger-btn" data-finger="2">2</button>
+      <button type="button" class="finger-btn" data-finger="3">3</button>
+      <button type="button" class="finger-btn" data-finger="4">4</button>
+      <button type="button" class="finger-btn" data-finger="T">T</button>
+    </div>
+    <div class="finger-menu-title">Dot Color</div>
+    <div class="finger-menu-colors">
+      <button type="button" class="color-btn" data-color="black"><span class="color-swatch black"></span>Black</button>
+      <button type="button" class="color-btn" data-color="grey"><span class="color-swatch grey"></span>Grey</button>
+    </div>
+    <div class="finger-menu-actions">
+      <button type="button" class="finger-action-btn" data-action="dot-only">Dot Only</button>
+      <button type="button" class="finger-action-btn danger" data-action="remove">Remove</button>
+    </div>
+  </div>
+
+  <!-- Instructions modal -->
+  <div id="helpModal" class="modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="helpModalTitle" class="modal-title">How to Use Chord Diagrams</h2>
+        <button type="button" id="helpCloseBtn" class="modal-close" aria-label="Close instructions">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h3>Editing Diagrams</h3>
+          <ul>
+            <li><strong>Place / remove a dot:</strong> Left-click any string and fret position.</li>
+            <li><strong>Fingering &amp; highlight color:</strong> Right-click any fret position to set fingering (<kbd>1</kbd>–<kbd>4</kbd>, <kbd>T</kbd>) or switch the dot color between <strong>Black</strong> and <strong>Grey</strong> to highlight specific notes.</li>
+            <li><strong>Open / muted strings:</strong> Click a string number or note name above the nut to cycle through <strong>O</strong> (open), <strong>X</strong> (muted), and blank.</li>
+            <li><strong>Starting fret / nut:</strong> Leave the left-side fret box blank or <code>0</code> for a heavy black nut bar. Enter <code>1</code>–<code>24</code> to show a starting fret number on the left.</li>
+            <li><strong>Labels:</strong> Click the page title or any chord name above a diagram to type a label.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Layout, Saving &amp; Printing</h3>
+          <ul>
+            <li><strong>Instrument &amp; frets:</strong> Switch between <strong>Guitar (6-string)</strong> and <strong>Ukulele (4-string)</strong>, and toggle <strong>5 frets</strong> for wider voicings.</li>
+            <li><strong>Page density:</strong> Choose 4, 8, 12, 16, or 20 diagrams per sheet.</li>
+            <li><strong>Saving:</strong> Your work-in-progress auto-saves in your browser across refreshes. Use <strong>Save</strong> to store named chord sheets and <strong>Open</strong> to load or manage them.</li>
+            <li><strong>Printing:</strong> Click <strong>Print</strong> to print or save as PDF without toolbar controls or input borders.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open saved sets modal -->
+  <div id="openModal" class="modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="openModalTitle" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="openModalTitle" class="modal-title">Open Saved Set</h2>
+        <button type="button" id="openCloseBtn" class="modal-close" aria-label="Close saved sets">&times;</button>
+      </div>
+      <div id="savedSetsList" class="modal-body saved-sets-list"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

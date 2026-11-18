@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors & IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment & local overrides
+.env
+.env.*
+
+# Dependencies & build artifacts (if added later)
+node_modules/
+dist/
+.vercel/

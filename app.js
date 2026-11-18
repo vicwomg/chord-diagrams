@@ -1,0 +1,861 @@
+(() => {
+  const STORAGE_KEY = 'guitarChordSheetState_v1';
+  const SAVED_SETS_KEY = 'chordDiagrams_savedSets_v1';
+  const MAX_DIAGRAMS = 20;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const INSTRUMENTS = {
+    guitar: {
+      label: 'Guitar',
+      numStrings: 6,
+      xStart: 32,
+      stringNums: ['6', '5', '4', '3', '2', '1'],
+      stringNames: ['E', 'A', 'D', 'G', 'B', 'E'],
+    },
+    ukulele: {
+      label: 'Ukulele',
+      numStrings: 4,
+      xStart: 54,
+      stringNums: ['4', '3', '2', '1'],
+      stringNames: ['G', 'C', 'E', 'A'],
+    },
+    mandolin: {
+      label: 'Mandolin',
+      numStrings: 4,
+      xStart: 54,
+      stringNums: ['4', '3', '2', '1'],
+      stringNames: ['G', 'D', 'A', 'E'],
+    },
+    banjo: {
+      label: 'Banjo (5-string)',
+      numStrings: 5,
+      xStart: 43,
+      stringNums: ['5', '4', '3', '2', '1'],
+      stringNames: ['G', 'D', 'G', 'B', 'D'],
+    },
+    'tenor-banjo': {
+      label: 'Tenor Banjo',
+      numStrings: 4,
+      xStart: 54,
+      stringNums: ['4', '3', '2', '1'],
+      stringNames: ['C', 'G', 'D', 'A'],
+    },
+    'plectrum-banjo': {
+      label: 'Plectrum Banjo',
+      numStrings: 4,
+      xStart: 54,
+      stringNums: ['4', '3', '2', '1'],
+      stringNames: ['C', 'G', 'B', 'D'],
+    },
+    'unlabeled-4': {
+      label: '4-string',
+      numStrings: 4,
+      xStart: 54,
+      labeled: false,
+    },
+    'unlabeled-5': {
+      label: '5-string',
+      numStrings: 5,
+      xStart: 43,
+      labeled: false,
+    },
+    'unlabeled-6': {
+      label: '6-string',
+      numStrings: 6,
+      xStart: 32,
+      labeled: false,
+    },
+    'unlabeled-7': {
+      label: '7-string',
+      numStrings: 7,
+      xStart: 32,
+      svgWidth: 178,
+      labeled: false,
+    },
+    'unlabeled-8': {
+      label: '8-string',
+      numStrings: 8,
+      xStart: 32,
+      svgWidth: 200,
+      labeled: false,
+    },
+  };
+
+  // SVG geometry
+  const MAX_STRINGS = 8;
+  const STRING_GAP = 22;
+  const FRET_HEIGHT = 28;
+  const DOT_RADIUS = 8.5;
+
+  function createEmptyDiagram() {
+    return {
+      name: '',
+      fretAnchor: null, // { row: 1..5, fret: 1..24 } | null
+      dots: {}, // key: `${stringIdx}-${fretRow}` -> { finger: ''|'1'..'4'|'T', color: 'black'|'grey' }
+      openMute: Array(MAX_STRINGS).fill(''), // '' | 'O' | 'X'
+    };
+  }
+
+  function getDot(diagram, key) {
+    if (!Object.prototype.hasOwnProperty.call(diagram.dots, key)) return null;
+    const raw = diagram.dots[key];
+    if (typeof raw === 'string') {
+      return { finger: raw, color: 'black' };
+    }
+    if (raw && typeof raw === 'object') {
+      return {
+        finger: typeof raw.finger === 'string' ? raw.finger : '',
+        color: raw.color === 'grey' ? 'grey' : 'black',
+      };
+    }
+    return { finger: '', color: 'black' };
+  }
+
+  function normalizeState(parsed) {
+    if (!parsed || !Array.isArray(parsed.diagrams)) {
+      return {
+        title: '',
+        count: 16,
+        extraFret: false,
+        instrument: 'guitar',
+        activeSetName: '',
+        diagrams: Array.from({ length: MAX_DIAGRAMS }, createEmptyDiagram),
+      };
+    }
+    const diagrams = parsed.diagrams.slice(0, MAX_DIAGRAMS).map((d) => {
+      let fretAnchor = null;
+      if (
+        d.fretAnchor &&
+        Number.isInteger(d.fretAnchor.row) &&
+        d.fretAnchor.row >= 1 &&
+        d.fretAnchor.row <= 5 &&
+        Number.isInteger(d.fretAnchor.fret) &&
+        d.fretAnchor.fret >= 1
+      ) {
+        fretAnchor = { row: d.fretAnchor.row, fret: Math.min(d.fretAnchor.fret, 24) };
+      } else if (Number.isInteger(d.startFret) && d.startFret >= 1) {
+        fretAnchor = { row: 1, fret: Math.min(d.startFret, 24) };
+      }
+      return {
+        name: typeof d.name === 'string' ? d.name : '',
+        fretAnchor,
+        dots: d.dots && typeof d.dots === 'object' ? { ...d.dots } : {},
+        openMute: Array.isArray(d.openMute)
+          ? Array.from({ length: MAX_STRINGS }, (_, idx) => d.openMute[idx] || '')
+          : Array(MAX_STRINGS).fill(''),
+      };
+    });
+    while (diagrams.length < MAX_DIAGRAMS) {
+      diagrams.push(createEmptyDiagram());
+    }
+    return {
+      title: typeof parsed.title === 'string' ? parsed.title : '',
+      count: [4, 8, 12, 16, 20].includes(parsed.count) ? parsed.count : 16,
+      extraFret: Boolean(parsed.extraFret),
+      instrument: INSTRUMENTS[parsed.instrument] ? parsed.instrument : 'guitar',
+      activeSetName: typeof parsed.activeSetName === 'string' ? parsed.activeSetName : '',
+      diagrams,
+    };
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        return normalizeState(JSON.parse(raw));
+      }
+    } catch {
+      // Ignore malformed storage
+    }
+    return normalizeState(null);
+  }
+
+  function loadSavedSets() {
+    try {
+      const raw = localStorage.getItem(SAVED_SETS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore malformed storage
+    }
+    return {};
+  }
+
+  function persistSavedSets() {
+    try {
+      localStorage.setItem(SAVED_SETS_KEY, JSON.stringify(savedSets));
+    } catch {
+      // Ignore quota errors
+    }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // Ignore quota errors
+    }
+  }
+
+  function svgEl(tag, attrs = {}) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      el.setAttribute(k, String(v));
+    }
+    return el;
+  }
+
+  let state = loadState();
+  let savedSets = loadSavedSets();
+  let activeTarget = null; // { diagramIdx, stringIdx, fretRow }
+
+  const pageTitleEl = document.getElementById('pageTitle');
+  const instrumentSelectEl = document.getElementById('instrumentSelect');
+  const diagramCountEl = document.getElementById('diagramCount');
+  const extraFretToggleEl = document.getElementById('extraFretToggle');
+  const saveSetBtn = document.getElementById('saveSetBtn');
+  const openSetBtn = document.getElementById('openSetBtn');
+  const chordGridEl = document.getElementById('chordGrid');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const printBtn = document.getElementById('printBtn');
+  const fingerMenuEl = document.getElementById('fingerMenu');
+  const helpBtn = document.getElementById('helpBtn');
+  const helpModalEl = document.getElementById('helpModal');
+  const helpCloseBtn = document.getElementById('helpCloseBtn');
+  const openModalEl = document.getElementById('openModal');
+  const openCloseBtn = document.getElementById('openCloseBtn');
+  const savedSetsListEl = document.getElementById('savedSetsList');
+
+  function syncToolbarFromState() {
+    pageTitleEl.value = state.title;
+    instrumentSelectEl.value = state.instrument;
+    diagramCountEl.value = String(state.count);
+    extraFretToggleEl.checked = state.extraFret;
+  }
+
+  function renderSavedSetsList() {
+    const names = Object.keys(savedSets).sort((a, b) => a.localeCompare(b));
+    savedSetsListEl.innerHTML = '';
+
+    if (names.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'saved-sets-empty';
+      empty.textContent = 'No saved sets yet. Click "Save" to store your current diagram sheet.';
+      savedSetsListEl.appendChild(empty);
+      return;
+    }
+
+    for (const name of names) {
+      const set = normalizeState(savedSets[name]);
+      const row = document.createElement('div');
+      row.className = 'saved-set-row';
+      if (state.activeSetName === name) {
+        row.classList.add('active');
+      }
+
+      const info = document.createElement('div');
+      info.className = 'saved-set-info';
+
+      const title = document.createElement('div');
+      title.className = 'saved-set-name';
+      title.textContent = name;
+
+      const meta = document.createElement('div');
+      meta.className = 'saved-set-meta';
+      const instLabel = INSTRUMENTS[set.instrument].label;
+      const fretLabel = set.extraFret ? '5 frets' : '4 frets';
+      meta.textContent = `${instLabel} • ${set.count} diagrams • ${fretLabel}`;
+
+      info.appendChild(title);
+      info.appendChild(meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'saved-set-actions';
+
+      const loadBtn = document.createElement('button');
+      loadBtn.type = 'button';
+      loadBtn.className = 'btn btn-primary';
+      loadBtn.textContent = 'Open';
+      loadBtn.addEventListener('click', () => {
+        state = normalizeState(savedSets[name]);
+        state.activeSetName = name;
+        saveState();
+        syncToolbarFromState();
+        renderGrid();
+        closeModal(openModalEl);
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn btn-secondary btn-danger-text';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => {
+        if (!confirm(`Delete saved set "${name}"?`)) return;
+        delete savedSets[name];
+        persistSavedSets();
+        if (state.activeSetName === name) {
+          state.activeSetName = '';
+          saveState();
+        }
+        renderSavedSetsList();
+      });
+
+      actions.appendChild(loadBtn);
+      actions.appendChild(delBtn);
+      row.appendChild(info);
+      row.appendChild(actions);
+      savedSetsListEl.appendChild(row);
+    }
+  }
+
+  syncToolbarFromState();
+
+  function getLayoutMetrics() {
+    const inst = INSTRUMENTS[state.instrument];
+    const labeled = inst.labeled !== false;
+    const yTop = labeled ? 47 : 22;
+    const numFrets = state.extraFret ? 5 : 4;
+    const svgWidth = inst.svgWidth || 156;
+    const svgHeight = yTop + numFrets * FRET_HEIGHT + 16;
+    return {
+      inst,
+      labeled,
+      numStrings: inst.numStrings,
+      xStart: inst.xStart,
+      yTop,
+      numFrets,
+      svgWidth,
+      svgHeight,
+      omY: labeled ? 36.5 : 11.5,
+      hitHeight: labeled ? 43 : 19,
+    };
+  }
+
+  function buildDiagramSvg(diagramIdx) {
+    const diagram = state.diagrams[diagramIdx];
+    const {
+      inst,
+      labeled,
+      numStrings,
+      xStart,
+      yTop,
+      numFrets,
+      svgWidth,
+      svgHeight,
+      omY,
+      hitHeight,
+    } = getLayoutMetrics();
+
+    const svg = svgEl('svg', {
+      viewBox: `0 0 ${svgWidth} ${svgHeight}`,
+      class: 'chord-svg',
+      'aria-label': `Chord diagram ${diagramIdx + 1}`,
+    });
+
+    const xEnd = xStart + (numStrings - 1) * STRING_GAP;
+    const yBottom = yTop + numFrets * FRET_HEIGHT;
+
+    // String headers and optional O / X
+    for (let s = 0; s < numStrings; s++) {
+      const x = xStart + s * STRING_GAP;
+      const headerGroup = svgEl('g', { class: 'string-header-group' });
+
+      if (labeled) {
+        const numText = svgEl('text', {
+          x,
+          y: 12,
+          'text-anchor': 'middle',
+          'font-size': '10',
+          'font-weight': '700',
+          fill: '#9ca3af',
+          class: 'string-label-text',
+        });
+        numText.textContent = inst.stringNums[s];
+        headerGroup.appendChild(numText);
+
+        const nameText = svgEl('text', {
+          x,
+          y: 25,
+          'text-anchor': 'middle',
+          'font-size': '10.5',
+          'font-weight': '700',
+          fill: '#111827',
+          class: 'string-label-text',
+        });
+        nameText.textContent = inst.stringNames[s];
+        headerGroup.appendChild(nameText);
+      }
+
+      const om = diagram.openMute[s];
+      if (om === 'O') {
+        const openCircle = svgEl('circle', {
+          cx: x,
+          cy: omY,
+          r: 3.6,
+          fill: 'none',
+          stroke: '#000000',
+          'stroke-width': '1.4',
+        });
+        headerGroup.appendChild(openCircle);
+      } else if (om === 'X') {
+        const d = 3.3;
+        const cy = omY;
+        headerGroup.appendChild(svgEl('line', {
+          x1: x - d,
+          y1: cy - d,
+          x2: x + d,
+          y2: cy + d,
+          stroke: '#000000',
+          'stroke-width': '1.5',
+          'stroke-linecap': 'round',
+        }));
+        headerGroup.appendChild(svgEl('line', {
+          x1: x + d,
+          y1: cy - d,
+          x2: x - d,
+          y2: cy + d,
+          stroke: '#000000',
+          'stroke-width': '1.5',
+          'stroke-linecap': 'round',
+        }));
+      }
+
+      const hit = svgEl('rect', {
+        x: x - STRING_GAP / 2,
+        y: 0,
+        width: STRING_GAP,
+        height: hitHeight,
+        class: 'string-header-hit',
+      });
+      hit.addEventListener('click', () => {
+        const order = ['', 'O', 'X'];
+        const next = order[(order.indexOf(diagram.openMute[s]) + 1) % order.length];
+        diagram.openMute[s] = next;
+        saveState();
+        renderSingleDiagram(diagramIdx);
+      });
+      headerGroup.appendChild(hit);
+
+      svg.appendChild(headerGroup);
+    }
+
+    // Vertical string lines
+    for (let s = 0; s < numStrings; s++) {
+      const x = xStart + s * STRING_GAP;
+      svg.appendChild(svgEl('line', {
+        x1: x,
+        y1: yTop,
+        x2: x,
+        y2: yBottom,
+        stroke: '#000000',
+        'stroke-width': '1.35',
+      }));
+    }
+
+    // Horizontal fret lines (index 0 is nut/top bar)
+    const anchor = diagram.fretAnchor;
+    const topFret = anchor ? anchor.fret - (anchor.row - 1) : 0;
+    for (let f = 0; f <= numFrets; f++) {
+      const y = yTop + f * FRET_HEIGHT;
+      const isNut = f === 0 && (!anchor || (anchor.row > 1 && topFret <= 1));
+      svg.appendChild(svgEl('line', {
+        x1: xStart,
+        y1: y,
+        x2: xEnd,
+        y2: y,
+        stroke: '#000000',
+        'stroke-width': isNut ? '5' : '1.35',
+        'stroke-linecap': isNut ? 'square' : 'butt',
+      }));
+    }
+
+    // Annotated fret label for print (HTML inputs handle screen editing & ghost offsets)
+    if (anchor && anchor.row <= numFrets) {
+      const fretLabel = svgEl('text', {
+        x: xStart - 12,
+        y: yTop + (anchor.row - 0.5) * FRET_HEIGHT,
+        'text-anchor': 'end',
+        'dominant-baseline': 'central',
+        'font-size': '12',
+        'font-weight': '700',
+        fill: '#000000',
+        class: 'start-fret-svg-label',
+      });
+      fretLabel.textContent = String(anchor.fret);
+      svg.appendChild(fretLabel);
+    }
+
+    // Interactive fret cells & dots
+    for (let f = 1; f <= numFrets; f++) {
+      const cy = yTop + (f - 0.5) * FRET_HEIGHT;
+      for (let s = 0; s < numStrings; s++) {
+        const cx = xStart + s * STRING_GAP;
+        const key = `${s}-${f}`;
+        const dot = getDot(diagram, key);
+
+        const cellGroup = svgEl('g', { class: 'fret-cell' });
+
+        if (!dot) {
+          cellGroup.appendChild(svgEl('circle', {
+            cx,
+            cy,
+            r: DOT_RADIUS,
+            class: 'fret-hover',
+          }));
+        } else {
+          cellGroup.appendChild(svgEl('circle', {
+            cx,
+            cy,
+            r: DOT_RADIUS,
+            fill: dot.color === 'grey' ? '#808080' : '#000000',
+          }));
+
+          if (dot.finger) {
+            const label = svgEl('text', {
+              x: cx,
+              y: cy + 0.5,
+              'text-anchor': 'middle',
+              'dominant-baseline': 'central',
+              'font-size': '11',
+              'font-weight': '700',
+              fill: '#ffffff',
+              'pointer-events': 'none',
+            });
+            label.textContent = dot.finger;
+            cellGroup.appendChild(label);
+          }
+        }
+
+        const hitRect = svgEl('rect', {
+          x: cx - STRING_GAP / 2,
+          y: yTop + (f - 1) * FRET_HEIGHT,
+          width: STRING_GAP,
+          height: FRET_HEIGHT,
+          class: 'fret-hit',
+        });
+
+        hitRect.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeFingerMenu();
+          if (Object.prototype.hasOwnProperty.call(diagram.dots, key)) {
+            delete diagram.dots[key];
+          } else {
+            diagram.dots[key] = { finger: '', color: 'black' };
+          }
+          saveState();
+          renderSingleDiagram(diagramIdx);
+        });
+
+        hitRect.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openFingerMenu(e.clientX, e.clientY, diagramIdx, s, f);
+        });
+
+        cellGroup.appendChild(hitRect);
+        svg.appendChild(cellGroup);
+      }
+    }
+
+    return svg;
+  }
+
+  function renderSingleDiagram(diagramIdx) {
+    const card = chordGridEl.children[diagramIdx];
+    if (!card) return;
+    const wrap = card.querySelector('.diagram-wrap');
+    const oldSvg = wrap.querySelector('svg');
+    const newSvg = buildDiagramSvg(diagramIdx);
+    wrap.replaceChild(newSvg, oldSvg);
+  }
+
+  function syncFretInputs(wrap, diagram) {
+    const anchor = diagram.fretAnchor;
+    wrap.querySelectorAll('.start-fret-input').forEach((input) => {
+      const row = parseInt(input.dataset.row, 10);
+      if (!anchor) {
+        input.value = '';
+        input.placeholder = row === 1 ? '0' : '';
+      } else if (anchor.row === row) {
+        if (document.activeElement !== input) {
+          input.value = String(anchor.fret);
+        }
+        input.placeholder = '';
+      } else {
+        input.value = '';
+        const offsetFret = anchor.fret + (row - anchor.row);
+        input.placeholder = offsetFret >= 0 ? String(offsetFret) : '';
+      }
+    });
+  }
+
+  function renderGrid() {
+    const { xStart, yTop, numFrets, svgWidth, svgHeight } = getLayoutMetrics();
+    const startFretLeft = `calc(${((xStart - 12) / svgWidth) * 100}% - 25px)`;
+
+    chordGridEl.classList.toggle('extra-fret', state.extraFret);
+    chordGridEl.classList.toggle('count-20', state.count === 20);
+    chordGridEl.innerHTML = '';
+    for (let i = 0; i < state.count; i++) {
+      const diagram = state.diagrams[i];
+      const card = document.createElement('div');
+      card.className = 'chord-card';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'chord-name-input';
+      nameInput.placeholder = 'Chord name';
+      nameInput.value = diagram.name;
+      nameInput.setAttribute('aria-label', `Chord ${i + 1} name`);
+      nameInput.addEventListener('input', (e) => {
+        diagram.name = e.target.value;
+        saveState();
+      });
+
+      const wrap = document.createElement('div');
+      wrap.className = 'diagram-wrap';
+      wrap.appendChild(buildDiagramSvg(i));
+
+      for (let r = 1; r <= numFrets; r++) {
+        const fretInput = document.createElement('input');
+        fretInput.type = 'number';
+        fretInput.min = '0';
+        fretInput.max = '24';
+        fretInput.className = 'start-fret-input';
+        fretInput.dataset.row = String(r);
+        fretInput.style.left = startFretLeft;
+        fretInput.style.top = `calc(${((yTop + (r - 0.5) * FRET_HEIGHT) / svgHeight) * 100}% - 11px)`;
+        fretInput.title = `Annotate fret ${r} (leave blank for nut / offset)`;
+        fretInput.setAttribute('aria-label', `Chord ${i + 1} fret row ${r}`);
+        fretInput.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value, 10);
+          if (!Number.isNaN(val) && val > 0) {
+            diagram.fretAnchor = { row: r, fret: Math.min(val, 24) };
+          } else {
+            diagram.fretAnchor = null;
+          }
+          syncFretInputs(wrap, diagram);
+          saveState();
+          renderSingleDiagram(i);
+        });
+        wrap.appendChild(fretInput);
+      }
+
+      syncFretInputs(wrap, diagram);
+
+      card.appendChild(nameInput);
+      card.appendChild(wrap);
+      chordGridEl.appendChild(card);
+    }
+  }
+
+  function openFingerMenu(clientX, clientY, diagramIdx, stringIdx, fretRow) {
+    activeTarget = { diagramIdx, stringIdx, fretRow };
+    const key = `${stringIdx}-${fretRow}`;
+    const dot = getDot(state.diagrams[diagramIdx], key);
+    const currentFinger = dot ? dot.finger : null;
+    const currentColor = dot ? dot.color : 'black';
+
+    fingerMenuEl.querySelectorAll('.finger-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.finger === currentFinger);
+    });
+    fingerMenuEl.querySelectorAll('.color-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.color === currentColor);
+    });
+
+    fingerMenuEl.classList.add('open');
+    fingerMenuEl.setAttribute('aria-hidden', 'false');
+
+    // Position menu within viewport bounds
+    const rect = fingerMenuEl.getBoundingClientRect();
+    const left = Math.min(clientX + 6, window.innerWidth - rect.width - 8);
+    const top = Math.min(clientY + 6, window.innerHeight - rect.height - 8);
+    fingerMenuEl.style.left = `${Math.max(8, left)}px`;
+    fingerMenuEl.style.top = `${Math.max(8, top)}px`;
+  }
+
+  function closeFingerMenu() {
+    activeTarget = null;
+    fingerMenuEl.classList.remove('open');
+    fingerMenuEl.setAttribute('aria-hidden', 'true');
+  }
+
+  function applyFingerValue(value) {
+    if (!activeTarget) return;
+    const { diagramIdx, stringIdx, fretRow } = activeTarget;
+    const key = `${stringIdx}-${fretRow}`;
+    const diagram = state.diagrams[diagramIdx];
+
+    if (value === null) {
+      delete diagram.dots[key];
+    } else {
+      const existing = getDot(diagram, key);
+      diagram.dots[key] = {
+        finger: value,
+        color: existing ? existing.color : 'black',
+      };
+    }
+
+    saveState();
+    renderSingleDiagram(diagramIdx);
+    closeFingerMenu();
+  }
+
+  function applyDotColor(color) {
+    if (!activeTarget) return;
+    const { diagramIdx, stringIdx, fretRow } = activeTarget;
+    const key = `${stringIdx}-${fretRow}`;
+    const diagram = state.diagrams[diagramIdx];
+    const existing = getDot(diagram, key);
+
+    diagram.dots[key] = {
+      finger: existing ? existing.finger : '',
+      color: color === 'grey' ? 'grey' : 'black',
+    };
+
+    saveState();
+    renderSingleDiagram(diagramIdx);
+    closeFingerMenu();
+  }
+
+  fingerMenuEl.addEventListener('click', (e) => {
+    const fingerBtn = e.target.closest('.finger-btn');
+    if (fingerBtn) {
+      applyFingerValue(fingerBtn.dataset.finger);
+      return;
+    }
+    const colorBtn = e.target.closest('.color-btn');
+    if (colorBtn) {
+      applyDotColor(colorBtn.dataset.color);
+      return;
+    }
+    const actionBtn = e.target.closest('.finger-action-btn');
+    if (actionBtn) {
+      if (actionBtn.dataset.action === 'dot-only') {
+        applyFingerValue('');
+      } else if (actionBtn.dataset.action === 'remove') {
+        applyFingerValue(null);
+      }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!fingerMenuEl.contains(e.target)) {
+      closeFingerMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!activeTarget) return;
+    const key = e.key.toUpperCase();
+    if (['1', '2', '3', '4', 'T'].includes(key)) {
+      e.preventDefault();
+      applyFingerValue(key);
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      applyFingerValue(null);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeFingerMenu();
+    }
+  });
+
+  pageTitleEl.addEventListener('input', (e) => {
+    state.title = e.target.value;
+    saveState();
+  });
+
+  instrumentSelectEl.addEventListener('change', (e) => {
+    state.instrument = INSTRUMENTS[e.target.value] ? e.target.value : 'guitar';
+    saveState();
+    renderGrid();
+  });
+
+  diagramCountEl.addEventListener('change', (e) => {
+    state.count = parseInt(e.target.value, 10) || 16;
+    saveState();
+    renderGrid();
+  });
+
+  extraFretToggleEl.addEventListener('change', (e) => {
+    state.extraFret = e.target.checked;
+    saveState();
+    renderGrid();
+  });
+
+  saveSetBtn.addEventListener('click', () => {
+    const defaultName = state.activeSetName || state.title.trim() || 'My Chord Set';
+    const rawName = prompt('Save diagram set as:', defaultName);
+    if (rawName === null) return;
+    const name = rawName.trim();
+    if (!name) return;
+
+    if (
+      Object.prototype.hasOwnProperty.call(savedSets, name) &&
+      name !== state.activeSetName &&
+      !confirm(`Overwrite existing saved set "${name}"?`)
+    ) {
+      return;
+    }
+
+    state.activeSetName = name;
+    savedSets[name] = normalizeState(state);
+    persistSavedSets();
+    saveState();
+  });
+
+  openSetBtn.addEventListener('click', () => {
+    renderSavedSetsList();
+    openModal(openModalEl);
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    if (!confirm('Clear the page title and all chord diagrams?')) return;
+    state.title = '';
+    state.activeSetName = '';
+    state.diagrams = Array.from({ length: MAX_DIAGRAMS }, createEmptyDiagram);
+    pageTitleEl.value = '';
+    saveState();
+    renderGrid();
+  });
+
+  printBtn.addEventListener('click', () => {
+    closeFingerMenu();
+    window.print();
+  });
+
+  function openModal(modalEl) {
+    closeFingerMenu();
+    modalEl.classList.add('open');
+    modalEl.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeModal(modalEl) {
+    modalEl.classList.remove('open');
+    modalEl.setAttribute('aria-hidden', 'true');
+  }
+
+  helpBtn.addEventListener('click', () => openModal(helpModalEl));
+  helpCloseBtn.addEventListener('click', () => closeModal(helpModalEl));
+  openCloseBtn.addEventListener('click', () => closeModal(openModalEl));
+
+  [helpModalEl, openModalEl].forEach((modalEl) => {
+    modalEl.addEventListener('click', (e) => {
+      if (e.target === modalEl) {
+        closeModal(modalEl);
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (helpModalEl.classList.contains('open')) closeModal(helpModalEl);
+    if (openModalEl.classList.contains('open')) closeModal(openModalEl);
+  });
+
+  renderGrid();
+})();

@@ -1,0 +1,698 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #eef0f3;
+  --surface: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #d1d5db;
+  --accent: #111827;
+  --accent-hover: #374151;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Toolbar */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.app-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.help-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.checkbox-group {
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.control-group select {
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  padding: 6px 9px;
+  line-height: 1;
+}
+
+.saved-sets-group {
+  gap: 6px;
+}
+
+/* Printable Sheet */
+.page-wrapper {
+  padding: 24px 16px 48px;
+  display: flex;
+  justify-content: center;
+}
+
+.sheet {
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0.45in 0.5in;
+  background: var(--surface);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+}
+
+.sheet-header {
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.page-title-input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  padding: 4px 8px;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  color: #000000;
+  background: transparent;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.page-title-input:hover,
+.page-title-input:focus {
+  border-bottom-color: var(--border);
+}
+
+.page-title-input::placeholder {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* 4-column Chord Grid */
+.chord-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.chord-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chord-name-input {
+  width: 100%;
+  max-width: 140px;
+  margin-bottom: 2px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  color: #000000;
+  background: transparent;
+  outline: none;
+}
+
+.chord-name-input:hover,
+.chord-name-input:focus {
+  border-color: var(--border);
+  background: #f9fafb;
+}
+
+.chord-name-input::placeholder {
+  color: #c4c9d2;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.diagram-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 158px;
+}
+
+.chord-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+/* Starting fret input positioned at left side of fret 1 */
+.start-fret-input {
+  position: absolute;
+  left: -8px;
+  top: calc(34.85% - 11px);
+  width: 25px;
+  height: 22px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  color: #000000;
+  background: transparent;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.start-fret-input::-webkit-outer-spin-button,
+.start-fret-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.start-fret-input:hover,
+.start-fret-input:focus {
+  border-color: var(--border);
+  background: #ffffff;
+}
+
+.start-fret-input::placeholder {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* SVG interactive elements */
+.start-fret-svg-label {
+  display: none;
+}
+
+.fret-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.fret-hover {
+  fill: #000000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.fret-cell:hover .fret-hover {
+  opacity: 0.16;
+}
+
+.string-header-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.string-header-group:hover .string-label-text {
+  fill: #2563eb;
+}
+
+/* Right-click fingering popover */
+.finger-menu {
+  position: fixed;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.16);
+}
+
+.finger-menu.open {
+  display: flex;
+}
+
+.finger-menu-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.finger-menu-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.finger-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #111827;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.finger-btn:hover {
+  background: #374151;
+  transform: scale(1.06);
+}
+
+.finger-btn.active {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.finger-menu-colors {
+  display: flex;
+  gap: 6px;
+}
+
+.color-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.color-btn:hover {
+  background: #f3f4f6;
+}
+
+.color-btn.active {
+  border-color: #2563eb;
+  outline: 1px solid #2563eb;
+}
+
+.color-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.color-swatch.black {
+  background: #000000;
+}
+
+.color-swatch.grey {
+  background: #808080;
+}
+
+.finger-menu-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.finger-action-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #f9fafb;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.finger-action-btn:hover {
+  background: #f3f4f6;
+}
+
+.finger-action-btn.danger {
+  color: #b91c1c;
+}
+
+/* Instructions Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 16px 20px 20px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #374151;
+}
+
+.help-section + .help-section {
+  margin-top: 14px;
+}
+
+.help-section h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.help-section ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.help-section li + li {
+  margin-top: 5px;
+}
+
+.modal-body kbd,
+.modal-body code {
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  color: #111827;
+}
+
+.saved-sets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-sets-empty {
+  margin: 8px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.saved-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.saved-set-row.active {
+  border-color: var(--accent);
+  background: #f9fafb;
+}
+
+.saved-set-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.saved-set-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-set-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.saved-set-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-danger-text {
+  color: #b91c1c;
+}
+
+/* Responsive screen layout for narrow viewports */
+@media (max-width: 860px) {
+  .sheet {
+    width: 100%;
+    min-height: auto;
+    padding: 20px 14px;
+  }
+
+  .chord-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Print Styles */
+@page {
+  size: letter portrait;
+  margin: 0.35in 0.4in;
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .page-wrapper {
+    padding: 0;
+    display: block;
+  }
+
+  .sheet {
+    width: 100%;
+    min-height: auto;
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .sheet-header {
+    margin-bottom: 10px;
+  }
+
+  .page-title-input {
+    border: none !important;
+    padding: 0;
+    font-size: 20px;
+  }
+
+  .page-title-input::placeholder {
+    color: transparent;
+  }
+
+  .chord-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 10px 14px;
+  }
+
+  .chord-name-input {
+    border: none !important;
+    background: transparent !important;
+    font-size: 13px;
+    margin-bottom: 1px;
+  }
+
+  .chord-name-input::placeholder {
+    color: transparent;
+  }
+
+  .diagram-wrap {
+    max-width: 148px;
+  }
+
+  .chord-grid.count-20 {
+    gap: 6px 12px;
+  }
+
+  .chord-grid.count-20 .chord-name-input {
+    font-size: 12px;
+  }
+
+  .chord-grid.count-20 .diagram-wrap {
+    max-width: 132px;
+  }
+
+  .chord-grid.count-20.extra-fret .diagram-wrap {
+    max-width: 118px;
+  }
+
+  /* Hide HTML input in print; SVG renders the starting fret crisply */
+  .start-fret-input {
+    display: none !important;
+  }
+
+  .start-fret-svg-label {
+    display: block !important;
+  }
+
+  .fret-hover {
+    display: none !important;
+  }
+}
