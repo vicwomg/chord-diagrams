@@ -12,12 +12,6 @@
       stringNums: ['6', '5', '4', '3', '2', '1'],
       stringNames: ['E', 'A', 'D', 'G', 'B', 'E'],
     },
-    'guitar-12': {
-      label: 'Guitar (12-string)',
-      numStrings: 12,
-      xStart: 32,
-      stringNames: ['E', 'E', 'A', 'A', 'D', 'D', 'G', 'G', 'B', 'B', 'E', 'E'],
-    },
     ukulele: {
       label: 'Ukulele',
       numStrings: 4,
