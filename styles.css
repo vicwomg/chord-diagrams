@@ -780,10 +780,20 @@ body {
 
 /* Responsive screen layout for narrow viewports */
 @media (max-width: 860px) {
+  body {
+    background: var(--surface);
+  }
+
+  .page-wrapper {
+    padding: 0;
+  }
+
   .sheet {
     width: 100%;
     min-height: auto;
-    padding: 20px 14px;
+    padding: 16px 12px 32px;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .chord-grid {

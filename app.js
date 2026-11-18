@@ -368,7 +368,7 @@
   function getLayoutMetrics() {
     const inst = INSTRUMENTS[state.instrument];
     const labeled = inst.labeled !== false;
-    const yTop = labeled ? 35 : 22;
+    const yTop = labeled ? 26 : 22;
     const numFrets = state.extraFret ? 5 : 4;
     const svgWidth = inst.svgWidth || 156;
     const svgHeight = yTop + numFrets * FRET_HEIGHT + 16;
@@ -381,14 +381,14 @@
       numFrets,
       svgWidth,
       svgHeight,
-      omY: labeled ? 24.5 : 11.5,
-      hitHeight: labeled ? 31 : 19,
+      omY: labeled ? 6.5 : 11.5,
+      hitHeight: labeled ? 23 : 19,
     };
   }
 
   function getStringStrokeWidth(stringIdx, numStrings) {
     if (!state.graduatedStrings || numStrings <= 1) return 1.35;
-    return Number((2.4 - (stringIdx / (numStrings - 1)) * (2.4 - 0.85)).toFixed(2));
+    return Number((2.4 - (stringIdx / (numStrings - 1)) * (2.4 - 1.1)).toFixed(2));
   }
 
   function buildDiagramSvg(diagramIdx) {
@@ -423,7 +423,7 @@
       if (labeled) {
         const nameText = svgEl('text', {
           x,
-          y: 13,
+          y: 18.5,
           'text-anchor': 'middle',
           'font-size': '10.5',
           'font-weight': '700',
@@ -1152,7 +1152,7 @@
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8);
           doc.setTextColor('#111827');
-          doc.text(inst.stringNames[s], px(x), py(13), { align: 'center' });
+          doc.text(inst.stringNames[s], px(x), py(18.5), { align: 'center' });
         }
 
         const om = diagram.openMute[s];
