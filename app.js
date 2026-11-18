@@ -683,6 +683,24 @@
       });
       actions.appendChild(restoreBtn);
     } else {
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'card-action-btn clear-btn';
+      clearBtn.dataset.tooltip = 'Clear chord';
+      clearBtn.setAttribute('aria-label', `Clear chord ${diagramIdx + 1}`);
+      clearBtn.innerHTML =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+      clearBtn.addEventListener('click', () => {
+        closeFingerMenu();
+        const empty = createEmptyDiagram();
+        state.diagrams[diagramIdx] = empty;
+        nameInput.value = '';
+        syncFretInputs(wrap, empty);
+        renderSingleDiagram(diagramIdx);
+        saveState();
+      });
+      actions.appendChild(clearBtn);
+
       const deleteBtn = document.createElement('button');
       deleteBtn.type = 'button';
       deleteBtn.className = 'card-action-btn delete-btn';
