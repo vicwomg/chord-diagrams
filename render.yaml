@@ -13,3 +13,6 @@ services:
       - path: /*.css
         name: Content-Type
         value: text/css; charset=utf-8
+      - path: /*
+        name: Cache-Control
+        value: no-cache
