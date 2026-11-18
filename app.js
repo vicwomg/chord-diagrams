@@ -158,7 +158,7 @@
         title: '',
         count: 16,
         extraFret: false,
-        leftHanded: false,
+        graduatedStrings: false,
         instrument: 'guitar',
         activeSetName: '',
         diagrams: Array.from({ length: MAX_DIAGRAMS }, createEmptyDiagram),
@@ -195,7 +195,7 @@
       title: typeof parsed.title === 'string' ? parsed.title : '',
       count: [4, 8, 12, 16, 20].includes(parsed.count) ? parsed.count : 16,
       extraFret: Boolean(parsed.extraFret),
-      leftHanded: Boolean(parsed.leftHanded),
+      graduatedStrings: Boolean(parsed.graduatedStrings),
       instrument: INSTRUMENTS[parsed.instrument] ? parsed.instrument : 'guitar',
       activeSetName: typeof parsed.activeSetName === 'string' ? parsed.activeSetName : '',
       diagrams,
@@ -263,7 +263,7 @@
   const instrumentSelectEl = document.getElementById('instrumentSelect');
   const diagramCountEl = document.getElementById('diagramCount');
   const extraFretToggleEl = document.getElementById('extraFretToggle');
-  const leftHandedToggleEl = document.getElementById('leftHandedToggle');
+  const graduatedStringsToggleEl = document.getElementById('graduatedStringsToggle');
   const saveSetBtn = document.getElementById('saveSetBtn');
   const openSetBtn = document.getElementById('openSetBtn');
   const chordGridEl = document.getElementById('chordGrid');
@@ -285,7 +285,7 @@
     instrumentSelectEl.value = state.instrument;
     diagramCountEl.value = String(state.count);
     extraFretToggleEl.checked = state.extraFret;
-    leftHandedToggleEl.checked = state.leftHanded;
+    graduatedStringsToggleEl.checked = state.graduatedStrings;
   }
 
   function renderSavedSetsList() {
@@ -386,6 +386,11 @@
     };
   }
 
+  function getStringStrokeWidth(stringIdx, numStrings) {
+    if (!state.graduatedStrings || numStrings <= 1) return 1.35;
+    return Number((2.4 - (stringIdx / (numStrings - 1)) * (2.4 - 0.85)).toFixed(2));
+  }
+
   function buildDiagramSvg(diagramIdx) {
     const diagram = state.diagrams[diagramIdx];
     const {
@@ -412,8 +417,7 @@
 
     // String headers and optional O / X
     for (let s = 0; s < numStrings; s++) {
-      const displayS = state.leftHanded ? numStrings - 1 - s : s;
-      const x = xStart + displayS * STRING_GAP;
+      const x = xStart + s * STRING_GAP;
       const headerGroup = svgEl('g', { class: 'string-header-group' });
 
       if (labeled) {
@@ -492,7 +496,7 @@
         x2: x,
         y2: yBottom,
         stroke: '#000000',
-        'stroke-width': '1.35',
+        'stroke-width': String(getStringStrokeWidth(s, numStrings)),
       }));
     }
 
@@ -533,8 +537,7 @@
     for (let f = 1; f <= numFrets; f++) {
       const cy = yTop + (f - 0.5) * FRET_HEIGHT;
       for (let s = 0; s < numStrings; s++) {
-        const displayS = state.leftHanded ? numStrings - 1 - s : s;
-        const cx = xStart + displayS * STRING_GAP;
+        const cx = xStart + s * STRING_GAP;
         const key = `${s}-${f}`;
         const dot = getDot(diagram, key);
 
@@ -1026,15 +1029,18 @@
     renderGrid();
   });
 
-  leftHandedToggleEl.addEventListener('change', (e) => {
-    state.leftHanded = e.target.checked;
+  graduatedStringsToggleEl.addEventListener('change', (e) => {
+    state.graduatedStrings = e.target.checked;
     saveState();
     renderGrid();
   });
 
   saveSetBtn.addEventListener('click', () => {
     const defaultName = state.activeSetName || state.title.trim() || 'My Chord Set';
-    const rawName = prompt('Save diagram set as:', defaultName);
+    const rawName = prompt(
+      'Save diagram set as:\n\nNote: Saved sets are stored in browser local storage and will not survive clearing browser data.',
+      defaultName
+    );
     if (rawName === null) return;
     const name = rawName.trim();
     if (!name) return;
@@ -1070,43 +1076,172 @@
 
   downloadPdfBtn.addEventListener('click', () => {
     closeFingerMenu();
-    if (typeof html2pdf === 'undefined') {
+    const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!JsPDF) {
       alert('PDF library failed to load. Opening the print dialog instead so you can save as PDF.');
       window.print();
       return;
     }
 
-    const sheetEl = document.querySelector('.sheet');
     const rawTitle = state.title.trim();
     const safeName = rawTitle
       ? rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       : 'chord-diagrams';
     const filename = `${safeName || 'chord-diagrams'}.pdf`;
 
-    downloadPdfBtn.disabled = true;
-    const prevLabel = downloadPdfBtn.textContent;
-    downloadPdfBtn.textContent = 'Exporting...';
-    document.body.classList.add('pdf-exporting');
+    const doc = new JsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
+    const pageW = 8.5;
+    const pageH = 11.0;
+    const marginX = 0.4;
+    const marginBottom = 0.35;
+    const usableW = pageW - marginX * 2;
 
-    html2pdf()
-      .set({
-        margin: [0.35, 0.4, 0.35, 0.4],
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-      })
-      .from(sheetEl)
-      .save()
-      .catch(() => {
-        alert('Could not generate PDF directly. Opening the print dialog instead.');
-        window.print();
-      })
-      .finally(() => {
-        document.body.classList.remove('pdf-exporting');
-        downloadPdfBtn.disabled = false;
-        downloadPdfBtn.textContent = prevLabel;
-      });
+    let gridTop = 0.45;
+    if (rawTitle) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor('#000000');
+      doc.text(rawTitle, pageW / 2, 0.58, { align: 'center' });
+      gridTop = 0.85;
+    }
+
+    const cols = 4;
+    const numRows = Math.ceil(state.count / cols);
+    const colGap = 0.16;
+    const rowGap = state.count === 20 ? 0.1 : 0.16;
+    const colW = (usableW - (cols - 1) * colGap) / cols;
+    const availH = pageH - marginBottom - gridTop;
+    const cellH = (availH - (numRows - 1) * rowGap) / numRows;
+
+    const metrics = getLayoutMetrics();
+    const { inst, labeled, numStrings, xStart, yTop, numFrets, svgWidth, svgHeight, omY } = metrics;
+    const xEnd = xStart + (numStrings - 1) * STRING_GAP;
+    const yBottom = yTop + numFrets * FRET_HEIGHT;
+
+    for (let i = 0; i < state.count; i++) {
+      const diagram = state.diagrams[i];
+      if (diagram.deleted) continue;
+
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cellX = marginX + col * (colW + colGap);
+      const cellY = gridTop + row * (cellH + rowGap);
+
+      const chordName = diagram.name.trim();
+      if (chordName) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(state.count === 20 ? 9.5 : 10.5);
+        doc.setTextColor('#000000');
+        doc.text(chordName, cellX + colW / 2, cellY + 0.15, { align: 'center' });
+      }
+
+      const diagTop = cellY + 0.22;
+      const diagAvailH = cellH - 0.22;
+      const scale = Math.min((colW * 0.94) / svgWidth, diagAvailH / svgHeight);
+      const drawW = svgWidth * scale;
+      const ox = cellX + (colW - drawW) / 2;
+      const oy = diagTop;
+      const px = (sx) => ox + sx * scale;
+      const py = (sy) => oy + sy * scale;
+
+      // String names and O / X markers
+      for (let s = 0; s < numStrings; s++) {
+        const x = xStart + s * STRING_GAP;
+
+        if (labeled) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor('#111827');
+          doc.text(inst.stringNames[s], px(x), py(13), { align: 'center' });
+        }
+
+        const om = diagram.openMute[s];
+        if (om === 'O') {
+          doc.setDrawColor('#000000');
+          doc.setLineWidth(1.4 * scale);
+          doc.circle(px(x), py(omY), 3.6 * scale, 'S');
+        } else if (om === 'X') {
+          const d = 3.3;
+          doc.setDrawColor('#000000');
+          doc.setLineWidth(1.5 * scale);
+          doc.line(px(x - d), py(omY - d), px(x + d), py(omY + d));
+          doc.line(px(x + d), py(omY - d), px(x - d), py(omY + d));
+        }
+      }
+
+      // Vertical string lines
+      doc.setDrawColor('#000000');
+      for (let s = 0; s < numStrings; s++) {
+        const x = xStart + s * STRING_GAP;
+        doc.setLineWidth(getStringStrokeWidth(s, numStrings) * scale);
+        doc.line(px(x), py(yTop), px(x), py(yBottom));
+      }
+
+      // Horizontal fret lines (index 0 is nut/top bar)
+      const anchor = diagram.fretAnchor;
+      const topFret = anchor ? anchor.fret - (anchor.row - 1) : 0;
+      for (let f = 0; f <= numFrets; f++) {
+        const y = yTop + f * FRET_HEIGHT;
+        const isNut = f === 0 && (!anchor || (anchor.row > 1 && topFret <= 1));
+        if (isNut) {
+          doc.setFillColor('#000000');
+          doc.rect(
+            px(xStart - 0.7),
+            py(y - 2.5),
+            (xEnd - xStart + 1.4) * scale,
+            5 * scale,
+            'F'
+          );
+        } else {
+          doc.setDrawColor('#000000');
+          doc.setLineWidth(1.35 * scale);
+          doc.line(px(xStart), py(y), px(xEnd), py(y));
+        }
+      }
+
+      // Starting fret label
+      if (anchor && anchor.row <= numFrets) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor('#000000');
+        doc.text(
+          String(anchor.fret),
+          px(xStart - 12),
+          py(yTop + (anchor.row - 0.5) * FRET_HEIGHT),
+          { align: 'right', baseline: 'middle' }
+        );
+      }
+
+      // Dots and labels
+      for (let f = 1; f <= numFrets; f++) {
+        const cy = yTop + (f - 0.5) * FRET_HEIGHT;
+        for (let s = 0; s < numStrings; s++) {
+          const key = `${s}-${f}`;
+          const dot = getDot(diagram, key);
+          if (!dot) continue;
+
+          const cx = xStart + s * STRING_GAP;
+          const hex = DOT_COLORS[dot.color] || DOT_COLORS.black;
+          doc.setFillColor(hex);
+          if (dot.color === 'white') {
+            doc.setDrawColor('#000000');
+            doc.setLineWidth(1.5 * scale);
+            doc.circle(px(cx), py(cy), DOT_RADIUS * scale, 'FD');
+          } else {
+            doc.circle(px(cx), py(cy), DOT_RADIUS * scale, 'F');
+          }
+
+          if (dot.finger) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(dot.finger.length > 1 ? 7 : 8.5);
+            doc.setTextColor(dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff');
+            doc.text(dot.finger, px(cx), py(cy), { align: 'center', baseline: 'middle' });
+          }
+        }
+      }
+    }
+
+    doc.save(filename);
   });
 
   printBtn.addEventListener('click', () => {

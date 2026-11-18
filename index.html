@@ -49,8 +49,8 @@
         <span>5 frets</span>
       </label>
       <label class="control-group checkbox-group">
-        <input type="checkbox" id="leftHandedToggle" />
-        <span>Left-handed</span>
+        <input type="checkbox" id="graduatedStringsToggle" />
+        <span>String gauge</span>
       </label>
       <button type="button" id="saveSetBtn" class="btn btn-secondary btn-icon" aria-label="Save set" title="Save set">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -64,7 +64,7 @@
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
         </svg>
       </button>
-      <button type="button" id="clearAllBtn" class="btn btn-secondary">Clear All</button>
+      <button type="button" id="clearAllBtn" class="btn btn-secondary">Clear</button>
       <button type="button" id="downloadPdfBtn" class="btn btn-primary">Download</button>
       <button type="button" id="printBtn" class="btn btn-primary">Print</button>
     </div>
@@ -110,6 +110,7 @@
     <div class="finger-menu-title">Dot Color</div>
     <div class="finger-menu-colors">
       <button type="button" class="color-btn" data-color="black"><span class="color-swatch black"></span>Black</button>
+      <button type="button" class="color-btn" data-color="white"><span class="color-swatch white"></span>White</button>
       <button type="button" class="color-btn" data-color="grey"><span class="color-swatch grey"></span>Grey</button>
       <button type="button" class="color-btn" data-color="red"><span class="color-swatch red"></span>Red</button>
       <button type="button" class="color-btn" data-color="blue"><span class="color-swatch blue"></span>Blue</button>
@@ -117,7 +118,6 @@
       <button type="button" class="color-btn" data-color="purple"><span class="color-swatch purple"></span>Purple</button>
       <button type="button" class="color-btn" data-color="brown"><span class="color-swatch brown"></span>Brown</button>
       <button type="button" class="color-btn" data-color="yellow"><span class="color-swatch yellow"></span>Yellow</button>
-      <button type="button" class="color-btn" data-color="white"><span class="color-swatch white"></span>White</button>
     </div>
     <div class="finger-menu-actions">
       <button type="button" class="finger-action-btn" data-action="dot-only">Dot Only</button>
@@ -149,7 +149,7 @@
           <ul>
             <li><strong>Instrument &amp; frets:</strong> Switch between <strong>Guitar (6-string)</strong> and <strong>Ukulele (4-string)</strong>, and toggle <strong>5 frets</strong> for wider voicings.</li>
             <li><strong>Page density:</strong> Choose 4, 8, 12, 16, or 20 diagrams per sheet.</li>
-            <li><strong>Saving:</strong> Your work-in-progress auto-saves in your browser across refreshes. Use <strong>Save</strong> to store named chord sheets and <strong>Open</strong> to load or manage them.</li>
+            <li><strong>Saving:</strong> Your work-in-progress auto-saves in your browser across refreshes. Use <strong>Save</strong> to store named chord sheets and <strong>Open</strong> to load or manage them. <em>Note: Saved sets are stored in browser local storage and will not survive clearing browser data.</em></li>
             <li><strong>Printing:</strong> Click <strong>Print</strong> to print or save as PDF without toolbar controls or input borders.</li>
           </ul>
         </div>
@@ -168,7 +168,7 @@
     </div>
   </div>
 
-  <script src="vendor/html2pdf.bundle.min.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
