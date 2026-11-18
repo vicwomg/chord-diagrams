@@ -93,6 +93,23 @@
       fretAnchor: null, // { row: 1..5, fret: 1..24 } | null
       dots: {}, // key: `${stringIdx}-${fretRow}` -> { finger: ''|'1'..'4'|'T', color: 'black'|'grey' }
       openMute: Array(MAX_STRINGS).fill(''), // '' | 'O' | 'X'
+      deleted: false,
+    };
+  }
+
+  function cloneDiagram(diagram) {
+    const dotsCopy = {};
+    for (const [k, v] of Object.entries(diagram.dots || {})) {
+      dotsCopy[k] = typeof v === 'object' && v !== null ? { ...v } : v;
+    }
+    return {
+      name: diagram.name || '',
+      fretAnchor: diagram.fretAnchor ? { ...diagram.fretAnchor } : null,
+      dots: dotsCopy,
+      openMute: Array.isArray(diagram.openMute)
+        ? [...diagram.openMute]
+        : Array(MAX_STRINGS).fill(''),
+      deleted: false,
     };
   }
 
@@ -143,6 +160,7 @@
         openMute: Array.isArray(d.openMute)
           ? Array.from({ length: MAX_STRINGS }, (_, idx) => d.openMute[idx] || '')
           : Array(MAX_STRINGS).fill(''),
+        deleted: Boolean(d.deleted),
       };
     });
     while (diagrams.length < MAX_DIAGRAMS) {
@@ -212,6 +230,7 @@
   let state = loadState();
   let savedSets = loadSavedSets();
   let activeTarget = null; // { diagramIdx, stringIdx, fretRow }
+  let copiedDiagram = null;
 
   const pageTitleEl = document.getElementById('pageTitle');
   const instrumentSelectEl = document.getElementById('instrumentSelect');
@@ -593,6 +612,96 @@
     });
   }
 
+  function syncPasteButtons() {
+    const hasCopied = copiedDiagram !== null;
+    chordGridEl.querySelectorAll('.paste-btn').forEach((btn) => {
+      btn.hidden = !hasCopied;
+    });
+  }
+
+  function createCardActions(diagramIdx, card, nameInput, wrap) {
+    const diagram = state.diagrams[diagramIdx];
+    const actions = document.createElement('div');
+    actions.className = 'card-actions no-print';
+
+    if (!diagram.deleted) {
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'card-action-btn copy-btn';
+      copyBtn.dataset.tooltip = 'Copy chord';
+      copyBtn.setAttribute('aria-label', `Copy chord ${diagramIdx + 1}`);
+      copyBtn.innerHTML =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+      copyBtn.addEventListener('click', () => {
+        copiedDiagram = cloneDiagram(state.diagrams[diagramIdx]);
+        syncPasteButtons();
+        copyBtn.classList.add('copied');
+        copyBtn.dataset.tooltip = 'Copied!';
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyBtn.dataset.tooltip = 'Copy chord';
+        }, 700);
+      });
+      actions.appendChild(copyBtn);
+    }
+
+    const pasteBtn = document.createElement('button');
+    pasteBtn.type = 'button';
+    pasteBtn.className = 'card-action-btn paste-btn';
+    pasteBtn.dataset.tooltip = 'Paste chord';
+    pasteBtn.setAttribute('aria-label', `Paste chord into slot ${diagramIdx + 1}`);
+    pasteBtn.hidden = copiedDiagram === null;
+    pasteBtn.innerHTML =
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>';
+    pasteBtn.addEventListener('click', () => {
+      if (!copiedDiagram) return;
+      const cloned = cloneDiagram(copiedDiagram);
+      state.diagrams[diagramIdx] = cloned;
+      saveState();
+      if (diagram.deleted) {
+        renderGrid();
+      } else {
+        nameInput.value = cloned.name;
+        syncFretInputs(wrap, cloned);
+        renderSingleDiagram(diagramIdx);
+      }
+    });
+    actions.appendChild(pasteBtn);
+
+    if (diagram.deleted) {
+      const restoreBtn = document.createElement('button');
+      restoreBtn.type = 'button';
+      restoreBtn.className = 'card-action-btn restore-btn';
+      restoreBtn.dataset.tooltip = 'Restore diagram';
+      restoreBtn.setAttribute('aria-label', `Restore chord ${diagramIdx + 1}`);
+      restoreBtn.innerHTML =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+      restoreBtn.addEventListener('click', () => {
+        state.diagrams[diagramIdx].deleted = false;
+        saveState();
+        renderGrid();
+      });
+      actions.appendChild(restoreBtn);
+    } else {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'card-action-btn delete-btn';
+      deleteBtn.dataset.tooltip = 'Delete diagram';
+      deleteBtn.setAttribute('aria-label', `Delete chord ${diagramIdx + 1}`);
+      deleteBtn.innerHTML =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
+      deleteBtn.addEventListener('click', () => {
+        closeFingerMenu();
+        state.diagrams[diagramIdx] = { ...createEmptyDiagram(), deleted: true };
+        saveState();
+        renderGrid();
+      });
+      actions.appendChild(deleteBtn);
+    }
+
+    return actions;
+  }
+
   function renderGrid() {
     const { xStart, yTop, numFrets, svgWidth, svgHeight } = getLayoutMetrics();
     const startFretLeft = `calc(${((xStart - 12) / svgWidth) * 100}% - 25px)`;
@@ -604,6 +713,9 @@
       const diagram = state.diagrams[i];
       const card = document.createElement('div');
       card.className = 'chord-card';
+      if (diagram.deleted) {
+        card.classList.add('is-deleted');
+      }
 
       const nameInput = document.createElement('input');
       nameInput.type = 'text';
@@ -647,6 +759,7 @@
 
       syncFretInputs(wrap, diagram);
 
+      card.appendChild(createCardActions(i, card, nameInput, wrap));
       card.appendChild(nameInput);
       card.appendChild(wrap);
       chordGridEl.appendChild(card);
@@ -777,6 +890,7 @@
 
   diagramCountEl.addEventListener('change', (e) => {
     state.count = parseInt(e.target.value, 10) || 16;
+    syncToolbarFromState();
     saveState();
     renderGrid();
   });
@@ -857,5 +971,6 @@
     if (openModalEl.classList.contains('open')) closeModal(openModalEl);
   });
 
+  syncToolbarFromState();
   renderGrid();
 })();
