@@ -12,6 +12,12 @@
       stringNums: ['6', '5', '4', '3', '2', '1'],
       stringNames: ['E', 'A', 'D', 'G', 'B', 'E'],
     },
+    'guitar-12': {
+      label: 'Guitar (12-string)',
+      numStrings: 12,
+      xStart: 32,
+      stringNames: ['E', 'E', 'A', 'A', 'D', 'D', 'G', 'G', 'B', 'B', 'E', 'E'],
+    },
     ukulele: {
       label: 'Ukulele',
       numStrings: 4,
@@ -82,23 +88,51 @@
       label: '7-string',
       numStrings: 7,
       xStart: 32,
-      svgWidth: 178,
       labeled: false,
     },
     'unlabeled-8': {
       label: '8-string',
       numStrings: 8,
       xStart: 32,
-      svgWidth: 200,
+      labeled: false,
+    },
+    'unlabeled-9': {
+      label: '9-string',
+      numStrings: 9,
+      xStart: 32,
+      labeled: false,
+    },
+    'unlabeled-10': {
+      label: '10-string',
+      numStrings: 10,
+      xStart: 32,
+      labeled: false,
+    },
+    'unlabeled-11': {
+      label: '11-string',
+      numStrings: 11,
+      xStart: 32,
+      labeled: false,
+    },
+    'unlabeled-12': {
+      label: '12-string',
+      numStrings: 12,
+      xStart: 32,
       labeled: false,
     },
   };
 
   // SVG geometry
-  const MAX_STRINGS = 8;
-  const STRING_GAP = 22;
+  const MAX_STRINGS = 12;
   const FRET_HEIGHT = 28;
-  const DOT_RADIUS = 8.5;
+  const STRING_LAYOUTS = {
+    7: { stringGap: 20, dotRadius: 8 },
+    8: { stringGap: 18, dotRadius: 7.5 },
+    9: { stringGap: 16.5, dotRadius: 7 },
+    10: { stringGap: 15, dotRadius: 6.5 },
+    11: { stringGap: 14, dotRadius: 6 },
+    12: { stringGap: 13, dotRadius: 5.6 },
+  };
   const DOT_COLORS = {
     black: '#000000',
     grey: '#808080',
@@ -370,13 +404,22 @@
     const labeled = inst.labeled !== false;
     const yTop = labeled ? 26 : 22;
     const numFrets = state.extraFret ? 5 : 4;
-    const svgWidth = inst.svgWidth || 156;
+    const { stringGap, dotRadius } = STRING_LAYOUTS[inst.numStrings] || {
+      stringGap: 22,
+      dotRadius: 8.5,
+    };
+    const svgWidth =
+      inst.numStrings <= 6
+        ? 156
+        : Math.ceil(inst.xStart + (inst.numStrings - 1) * stringGap + 14);
     const svgHeight = yTop + numFrets * FRET_HEIGHT + 16;
     return {
       inst,
       labeled,
       numStrings: inst.numStrings,
       xStart: inst.xStart,
+      stringGap,
+      dotRadius,
       yTop,
       numFrets,
       svgWidth,
@@ -398,6 +441,8 @@
       labeled,
       numStrings,
       xStart,
+      stringGap,
+      dotRadius,
       yTop,
       numFrets,
       svgWidth,
@@ -412,12 +457,15 @@
       'aria-label': `Chord diagram ${diagramIdx + 1}`,
     });
 
-    const xEnd = xStart + (numStrings - 1) * STRING_GAP;
+    const xEnd = xStart + (numStrings - 1) * stringGap;
     const yBottom = yTop + numFrets * FRET_HEIGHT;
+    const omRadius = stringGap <= 15 ? 2.8 : 3.6;
+    const omHalf = stringGap <= 15 ? 2.6 : 3.3;
+    const nameFontSize = stringGap <= 15 ? '8.5' : '10.5';
 
     // String headers and optional O / X
     for (let s = 0; s < numStrings; s++) {
-      const x = xStart + s * STRING_GAP;
+      const x = xStart + s * stringGap;
       const headerGroup = svgEl('g', { class: 'string-header-group' });
 
       if (labeled) {
@@ -425,7 +473,7 @@
           x,
           y: 18.5,
           'text-anchor': 'middle',
-          'font-size': '10.5',
+          'font-size': nameFontSize,
           'font-weight': '700',
           fill: '#111827',
           class: 'string-label-text',
@@ -439,14 +487,14 @@
         const openCircle = svgEl('circle', {
           cx: x,
           cy: omY,
-          r: 3.6,
+          r: omRadius,
           fill: 'none',
           stroke: '#000000',
           'stroke-width': '1.4',
         });
         headerGroup.appendChild(openCircle);
       } else if (om === 'X') {
-        const d = 3.3;
+        const d = omHalf;
         const cy = omY;
         headerGroup.appendChild(svgEl('line', {
           x1: x - d,
@@ -469,9 +517,9 @@
       }
 
       const hit = svgEl('rect', {
-        x: x - STRING_GAP / 2,
+        x: x - stringGap / 2,
         y: 0,
-        width: STRING_GAP,
+        width: stringGap,
         height: hitHeight,
         class: 'string-header-hit',
       });
@@ -489,7 +537,7 @@
 
     // Vertical string lines
     for (let s = 0; s < numStrings; s++) {
-      const x = xStart + s * STRING_GAP;
+      const x = xStart + s * stringGap;
       svg.appendChild(svgEl('line', {
         x1: x,
         y1: yTop,
@@ -537,7 +585,7 @@
     for (let f = 1; f <= numFrets; f++) {
       const cy = yTop + (f - 0.5) * FRET_HEIGHT;
       for (let s = 0; s < numStrings; s++) {
-        const cx = xStart + s * STRING_GAP;
+        const cx = xStart + s * stringGap;
         const key = `${s}-${f}`;
         const dot = getDot(diagram, key);
 
@@ -547,14 +595,14 @@
           cellGroup.appendChild(svgEl('circle', {
             cx,
             cy,
-            r: DOT_RADIUS,
+            r: dotRadius,
             class: 'fret-hover',
           }));
         } else {
           const dotAttrs = {
             cx,
             cy,
-            r: DOT_RADIUS,
+            r: dotRadius,
             fill: DOT_COLORS[dot.color] || DOT_COLORS.black,
           };
           if (dot.color === 'white') {
@@ -564,12 +612,20 @@
           cellGroup.appendChild(svgEl('circle', dotAttrs));
 
           if (dot.finger) {
+            const dotFontSize =
+              dotRadius <= 6
+                ? dot.finger.length > 1
+                  ? '6.5'
+                  : '8'
+                : dot.finger.length > 1
+                  ? '9.5'
+                  : '11';
             const label = svgEl('text', {
               x: cx,
               y: cy,
               dy: '0.35em',
               'text-anchor': 'middle',
-              'font-size': dot.finger.length > 1 ? '9.5' : '11',
+              'font-size': dotFontSize,
               'font-weight': '700',
               fill: dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff',
               'pointer-events': 'none',
@@ -580,9 +636,9 @@
         }
 
         const hitRect = svgEl('rect', {
-          x: cx - STRING_GAP / 2,
+          x: cx - stringGap / 2,
           y: yTop + (f - 1) * FRET_HEIGHT,
-          width: STRING_GAP,
+          width: stringGap,
           height: FRET_HEIGHT,
           class: 'fret-hit',
         });
@@ -1114,9 +1170,24 @@
     const cellH = (availH - (numRows - 1) * rowGap) / numRows;
 
     const metrics = getLayoutMetrics();
-    const { inst, labeled, numStrings, xStart, yTop, numFrets, svgWidth, svgHeight, omY } = metrics;
-    const xEnd = xStart + (numStrings - 1) * STRING_GAP;
+    const {
+      inst,
+      labeled,
+      numStrings,
+      xStart,
+      stringGap,
+      dotRadius,
+      yTop,
+      numFrets,
+      svgWidth,
+      svgHeight,
+      omY,
+    } = metrics;
+    const xEnd = xStart + (numStrings - 1) * stringGap;
     const yBottom = yTop + numFrets * FRET_HEIGHT;
+    const omRadius = stringGap <= 15 ? 2.8 : 3.6;
+    const omHalf = stringGap <= 15 ? 2.6 : 3.3;
+    const nameFontSize = stringGap <= 15 ? 6.5 : 8;
 
     for (let i = 0; i < state.count; i++) {
       const diagram = state.diagrams[i];
@@ -1146,11 +1217,11 @@
 
       // String names and O / X markers
       for (let s = 0; s < numStrings; s++) {
-        const x = xStart + s * STRING_GAP;
+        const x = xStart + s * stringGap;
 
         if (labeled) {
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
+          doc.setFontSize(nameFontSize);
           doc.setTextColor('#111827');
           doc.text(inst.stringNames[s], px(x), py(18.5), { align: 'center' });
         }
@@ -1159,9 +1230,9 @@
         if (om === 'O') {
           doc.setDrawColor('#000000');
           doc.setLineWidth(1.4 * scale);
-          doc.circle(px(x), py(omY), 3.6 * scale, 'S');
+          doc.circle(px(x), py(omY), omRadius * scale, 'S');
         } else if (om === 'X') {
-          const d = 3.3;
+          const d = omHalf;
           doc.setDrawColor('#000000');
           doc.setLineWidth(1.5 * scale);
           doc.line(px(x - d), py(omY - d), px(x + d), py(omY + d));
@@ -1172,7 +1243,7 @@
       // Vertical string lines
       doc.setDrawColor('#000000');
       for (let s = 0; s < numStrings; s++) {
-        const x = xStart + s * STRING_GAP;
+        const x = xStart + s * stringGap;
         doc.setLineWidth(getStringStrokeWidth(s, numStrings) * scale);
         doc.line(px(x), py(yTop), px(x), py(yBottom));
       }
@@ -1220,20 +1291,28 @@
           const dot = getDot(diagram, key);
           if (!dot) continue;
 
-          const cx = xStart + s * STRING_GAP;
+          const cx = xStart + s * stringGap;
           const hex = DOT_COLORS[dot.color] || DOT_COLORS.black;
           doc.setFillColor(hex);
           if (dot.color === 'white') {
             doc.setDrawColor('#000000');
             doc.setLineWidth(1.5 * scale);
-            doc.circle(px(cx), py(cy), DOT_RADIUS * scale, 'FD');
+            doc.circle(px(cx), py(cy), dotRadius * scale, 'FD');
           } else {
-            doc.circle(px(cx), py(cy), DOT_RADIUS * scale, 'F');
+            doc.circle(px(cx), py(cy), dotRadius * scale, 'F');
           }
 
           if (dot.finger) {
+            const pdfFontSize =
+              dotRadius <= 6
+                ? dot.finger.length > 1
+                  ? 5.2
+                  : 6.5
+                : dot.finger.length > 1
+                  ? 7
+                  : 8.5;
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(dot.finger.length > 1 ? 7 : 8.5);
+            doc.setFontSize(pdfFontSize);
             doc.setTextColor(dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff');
             doc.text(dot.finger, px(cx), py(cy), { align: 'center', baseline: 'middle' });
           }
