@@ -149,6 +149,17 @@
     };
   }
 
+  function cloneOpenMuteEntry(entry) {
+    if (entry && typeof entry === 'object') {
+      return {
+        type: entry.type === 'X' ? 'X' : 'O',
+        finger: typeof entry.finger === 'string' ? entry.finger : '',
+        color: DOT_COLORS[entry.color] ? entry.color : 'white',
+      };
+    }
+    return entry === 'O' || entry === 'X' ? entry : '';
+  }
+
   function cloneDiagram(diagram) {
     const dotsCopy = {};
     for (const [k, v] of Object.entries(diagram.dots || {})) {
@@ -159,7 +170,7 @@
       fretAnchor: diagram.fretAnchor ? { ...diagram.fretAnchor } : null,
       dots: dotsCopy,
       openMute: Array.isArray(diagram.openMute)
-        ? [...diagram.openMute]
+        ? Array.from({ length: MAX_STRINGS }, (_, idx) => cloneOpenMuteEntry(diagram.openMute[idx]))
         : Array(MAX_STRINGS).fill(''),
       deleted: false,
     };
@@ -178,6 +189,21 @@
       };
     }
     return { finger: '', color: 'black' };
+  }
+
+  function getOpenMute(diagram, stringIdx) {
+    const raw = Array.isArray(diagram.openMute) ? diagram.openMute[stringIdx] : '';
+    if (!raw) return null;
+    if (raw === 'X') return { type: 'X', finger: '', color: 'black' };
+    if (raw === 'O') return { type: 'O', finger: '', color: 'white' };
+    if (typeof raw === 'object') {
+      return {
+        type: raw.type === 'X' ? 'X' : 'O',
+        finger: typeof raw.finger === 'string' ? raw.finger : '',
+        color: DOT_COLORS[raw.color] ? raw.color : 'white',
+      };
+    }
+    return null;
   }
 
   function normalizeState(parsed) {
@@ -211,7 +237,7 @@
         fretAnchor,
         dots: d.dots && typeof d.dots === 'object' ? { ...d.dots } : {},
         openMute: Array.isArray(d.openMute)
-          ? Array.from({ length: MAX_STRINGS }, (_, idx) => d.openMute[idx] || '')
+          ? Array.from({ length: MAX_STRINGS }, (_, idx) => cloneOpenMuteEntry(d.openMute[idx]))
           : Array(MAX_STRINGS).fill(''),
         deleted: Boolean(d.deleted),
       };
@@ -396,7 +422,7 @@
   function getLayoutMetrics() {
     const inst = INSTRUMENTS[state.instrument];
     const labeled = inst.labeled !== false;
-    const yTop = labeled ? 26 : 22;
+    const yTop = 28;
     const numFrets = state.extraFret ? 5 : 4;
     const { stringGap, dotRadius } = STRING_LAYOUTS[inst.numStrings] || {
       stringGap: 22,
@@ -418,14 +444,123 @@
       numFrets,
       svgWidth,
       svgHeight,
-      omY: labeled ? 6.5 : 11.5,
-      hitHeight: labeled ? 23 : 19,
+      omY: 13.5,
+      hitHeight: 25,
     };
   }
 
   function getStringStrokeWidth(stringIdx, numStrings) {
     if (!state.graduatedStrings || numStrings <= 1) return 1.35;
     return Number((2.4 - (stringIdx / (numStrings - 1)) * (2.4 - 1.1)).toFixed(2));
+  }
+
+  function appendDotSvg(group, cx, cy, dotRadius, dot) {
+    const dotAttrs = {
+      cx,
+      cy,
+      r: dotRadius,
+      fill: DOT_COLORS[dot.color] || DOT_COLORS.black,
+    };
+    if (dot.color === 'white') {
+      dotAttrs.stroke = '#000000';
+      dotAttrs['stroke-width'] = '1.5';
+    }
+    group.appendChild(svgEl('circle', dotAttrs));
+
+    if (dot.finger) {
+      const dotFontSize =
+        dotRadius <= 6
+          ? dot.finger.length > 1
+            ? '6.5'
+            : '8'
+          : dot.finger.length > 1
+            ? '9.5'
+            : '11';
+      const label = svgEl('text', {
+        x: cx,
+        y: cy,
+        dy: '0.35em',
+        'text-anchor': 'middle',
+        'font-size': dotFontSize,
+        'font-weight': '700',
+        fill: dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff',
+        'pointer-events': 'none',
+      });
+      label.textContent = dot.finger;
+      group.appendChild(label);
+    }
+  }
+
+  function attachHitHandlers(hitEl, diagramIdx, stringIdx, fretRow, onClick) {
+    let longPressTimer = null;
+    let longPressTriggered = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    hitEl.addEventListener(
+      'touchstart',
+      (e) => {
+        if (e.touches.length !== 1) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+          return;
+        }
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        longPressTriggered = false;
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+          longPressTimer = null;
+          longPressTriggered = true;
+          lastLongPressAt = Date.now();
+          openFingerMenu(touchStartX, touchStartY, diagramIdx, stringIdx, fretRow);
+        }, 450);
+      },
+      { passive: true }
+    );
+
+    hitEl.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!longPressTimer || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        if (Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY) > 10) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      },
+      { passive: true }
+    );
+
+    const cancelTouchPress = (e) => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      if (longPressTriggered && e.type === 'touchend') {
+        e.preventDefault();
+      }
+    };
+
+    hitEl.addEventListener('touchend', cancelTouchPress);
+    hitEl.addEventListener('touchcancel', cancelTouchPress);
+
+    hitEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (longPressTriggered || Date.now() - lastLongPressAt < 400) {
+        longPressTriggered = false;
+        return;
+      }
+      closeFingerMenu();
+      onClick();
+    });
+
+    hitEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openFingerMenu(e.clientX, e.clientY, diagramIdx, stringIdx, fretRow);
+    });
   }
 
   function buildDiagramSvg(diagramIdx) {
@@ -453,16 +588,16 @@
 
     const xEnd = xStart + (numStrings - 1) * stringGap;
     const yBottom = yTop + numFrets * FRET_HEIGHT;
-    const omRadius = stringGap <= 15 ? 2.8 : 3.6;
-    const omHalf = stringGap <= 15 ? 2.6 : 3.3;
+    const omHalf = dotRadius * 0.68;
     const nameFontSize = stringGap <= 15 ? '8.5' : '10.5';
 
     // String headers and optional O / X
     for (let s = 0; s < numStrings; s++) {
       const x = xStart + s * stringGap;
       const headerGroup = svgEl('g', { class: 'string-header-group' });
+      const om = getOpenMute(diagram, s);
 
-      if (labeled) {
+      if (!om && labeled) {
         const nameText = svgEl('text', {
           x,
           y: 18.5,
@@ -476,18 +611,9 @@
         headerGroup.appendChild(nameText);
       }
 
-      const om = diagram.openMute[s];
-      if (om === 'O') {
-        const openCircle = svgEl('circle', {
-          cx: x,
-          cy: omY,
-          r: omRadius,
-          fill: 'none',
-          stroke: '#000000',
-          'stroke-width': '1.4',
-        });
-        headerGroup.appendChild(openCircle);
-      } else if (om === 'X') {
+      if (om && om.type === 'O') {
+        appendDotSvg(headerGroup, x, omY, dotRadius, om);
+      } else if (om && om.type === 'X') {
         const d = omHalf;
         const cy = omY;
         headerGroup.appendChild(svgEl('line', {
@@ -496,7 +622,7 @@
           x2: x + d,
           y2: cy + d,
           stroke: '#000000',
-          'stroke-width': '1.5',
+          'stroke-width': '1.6',
           'stroke-linecap': 'round',
         }));
         headerGroup.appendChild(svgEl('line', {
@@ -505,7 +631,7 @@
           x2: x - d,
           y2: cy + d,
           stroke: '#000000',
-          'stroke-width': '1.5',
+          'stroke-width': '1.6',
           'stroke-linecap': 'round',
         }));
       }
@@ -517,9 +643,10 @@
         height: hitHeight,
         class: 'string-header-hit',
       });
-      hit.addEventListener('click', () => {
+      attachHitHandlers(hit, diagramIdx, s, 0, () => {
         const order = ['', 'O', 'X'];
-        const next = order[(order.indexOf(diagram.openMute[s]) + 1) % order.length];
+        const current = om ? om.type : '';
+        const next = order[(order.indexOf(current) + 1) % order.length];
         diagram.openMute[s] = next;
         saveState();
         renderSingleDiagram(diagramIdx);
@@ -593,40 +720,7 @@
             class: 'fret-hover',
           }));
         } else {
-          const dotAttrs = {
-            cx,
-            cy,
-            r: dotRadius,
-            fill: DOT_COLORS[dot.color] || DOT_COLORS.black,
-          };
-          if (dot.color === 'white') {
-            dotAttrs.stroke = '#000000';
-            dotAttrs['stroke-width'] = '1.5';
-          }
-          cellGroup.appendChild(svgEl('circle', dotAttrs));
-
-          if (dot.finger) {
-            const dotFontSize =
-              dotRadius <= 6
-                ? dot.finger.length > 1
-                  ? '6.5'
-                  : '8'
-                : dot.finger.length > 1
-                  ? '9.5'
-                  : '11';
-            const label = svgEl('text', {
-              x: cx,
-              y: cy,
-              dy: '0.35em',
-              'text-anchor': 'middle',
-              'font-size': dotFontSize,
-              'font-weight': '700',
-              fill: dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff',
-              'pointer-events': 'none',
-            });
-            label.textContent = dot.finger;
-            cellGroup.appendChild(label);
-          }
+          appendDotSvg(cellGroup, cx, cy, dotRadius, dot);
         }
 
         const hitRect = svgEl('rect', {
@@ -637,67 +731,7 @@
           class: 'fret-hit',
         });
 
-        let longPressTimer = null;
-        let longPressTriggered = false;
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        hitRect.addEventListener(
-          'touchstart',
-          (e) => {
-            if (e.touches.length !== 1) {
-              clearTimeout(longPressTimer);
-              longPressTimer = null;
-              return;
-            }
-            const touch = e.touches[0];
-            touchStartX = touch.clientX;
-            touchStartY = touch.clientY;
-            longPressTriggered = false;
-            clearTimeout(longPressTimer);
-            longPressTimer = setTimeout(() => {
-              longPressTimer = null;
-              longPressTriggered = true;
-              lastLongPressAt = Date.now();
-              openFingerMenu(touchStartX, touchStartY, diagramIdx, s, f);
-            }, 450);
-          },
-          { passive: true }
-        );
-
-        hitRect.addEventListener(
-          'touchmove',
-          (e) => {
-            if (!longPressTimer || e.touches.length !== 1) return;
-            const touch = e.touches[0];
-            if (Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY) > 10) {
-              clearTimeout(longPressTimer);
-              longPressTimer = null;
-            }
-          },
-          { passive: true }
-        );
-
-        const cancelTouchPress = (e) => {
-          if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-          }
-          if (longPressTriggered && e.type === 'touchend') {
-            e.preventDefault();
-          }
-        };
-
-        hitRect.addEventListener('touchend', cancelTouchPress);
-        hitRect.addEventListener('touchcancel', cancelTouchPress);
-
-        hitRect.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (longPressTriggered || Date.now() - lastLongPressAt < 400) {
-            longPressTriggered = false;
-            return;
-          }
-          closeFingerMenu();
+        attachHitHandlers(hitRect, diagramIdx, s, f, () => {
           if (Object.prototype.hasOwnProperty.call(diagram.dots, key)) {
             delete diagram.dots[key];
           } else {
@@ -705,12 +739,6 @@
           }
           saveState();
           renderSingleDiagram(diagramIdx);
-        });
-
-        hitRect.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openFingerMenu(e.clientX, e.clientY, diagramIdx, s, f);
         });
 
         cellGroup.appendChild(hitRect);
@@ -924,10 +952,14 @@
 
   function openFingerMenu(clientX, clientY, diagramIdx, stringIdx, fretRow) {
     activeTarget = { diagramIdx, stringIdx, fretRow };
-    const key = `${stringIdx}-${fretRow}`;
-    const dot = getDot(state.diagrams[diagramIdx], key);
-    const currentFinger = dot ? dot.finger : null;
-    const currentColor = dot ? dot.color : 'black';
+    const diagram = state.diagrams[diagramIdx];
+    const dot =
+      fretRow === 0
+        ? getOpenMute(diagram, stringIdx)
+        : getDot(diagram, `${stringIdx}-${fretRow}`);
+    const currentFinger = dot && (fretRow > 0 || dot.type === 'O') ? dot.finger : null;
+    const currentColor =
+      dot && (fretRow > 0 || dot.type === 'O') ? dot.color : fretRow === 0 ? 'white' : 'black';
 
     fingerMenuEl.querySelectorAll('.finger-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.finger === currentFinger);
@@ -957,17 +989,30 @@
   function applyFingerValue(value, { close = true } = {}) {
     if (!activeTarget) return;
     const { diagramIdx, stringIdx, fretRow } = activeTarget;
-    const key = `${stringIdx}-${fretRow}`;
     const diagram = state.diagrams[diagramIdx];
 
-    if (value === null) {
-      delete diagram.dots[key];
+    if (fretRow === 0) {
+      if (value === null) {
+        diagram.openMute[stringIdx] = '';
+      } else {
+        const existing = getOpenMute(diagram, stringIdx);
+        diagram.openMute[stringIdx] = {
+          type: 'O',
+          finger: String(value).slice(0, 2),
+          color: existing && existing.type === 'O' ? existing.color : 'white',
+        };
+      }
     } else {
-      const existing = getDot(diagram, key);
-      diagram.dots[key] = {
-        finger: String(value).slice(0, 2),
-        color: existing ? existing.color : 'black',
-      };
+      const key = `${stringIdx}-${fretRow}`;
+      if (value === null) {
+        delete diagram.dots[key];
+      } else {
+        const existing = getDot(diagram, key);
+        diagram.dots[key] = {
+          finger: String(value).slice(0, 2),
+          color: existing ? existing.color : 'black',
+        };
+      }
     }
 
     saveState();
@@ -978,14 +1023,24 @@
   function applyDotColor(color) {
     if (!activeTarget) return;
     const { diagramIdx, stringIdx, fretRow } = activeTarget;
-    const key = `${stringIdx}-${fretRow}`;
     const diagram = state.diagrams[diagramIdx];
-    const existing = getDot(diagram, key);
+    const resolvedColor = DOT_COLORS[color] ? color : fretRow === 0 ? 'white' : 'black';
 
-    diagram.dots[key] = {
-      finger: existing ? existing.finger : '',
-      color: DOT_COLORS[color] ? color : 'black',
-    };
+    if (fretRow === 0) {
+      const existing = getOpenMute(diagram, stringIdx);
+      diagram.openMute[stringIdx] = {
+        type: 'O',
+        finger: existing && existing.type === 'O' ? existing.finger : '',
+        color: resolvedColor,
+      };
+    } else {
+      const key = `${stringIdx}-${fretRow}`;
+      const existing = getDot(diagram, key);
+      diagram.dots[key] = {
+        finger: existing ? existing.finger : '',
+        color: resolvedColor,
+      };
+    }
 
     saveState();
     renderSingleDiagram(diagramIdx);
@@ -1179,9 +1234,35 @@
     } = metrics;
     const xEnd = xStart + (numStrings - 1) * stringGap;
     const yBottom = yTop + numFrets * FRET_HEIGHT;
-    const omRadius = stringGap <= 15 ? 2.8 : 3.6;
-    const omHalf = stringGap <= 15 ? 2.6 : 3.3;
+    const omHalf = dotRadius * 0.68;
     const nameFontSize = stringGap <= 15 ? 6.5 : 8;
+
+    const drawPdfDot = (cx, cy, dot) => {
+      const hex = DOT_COLORS[dot.color] || DOT_COLORS.black;
+      doc.setFillColor(hex);
+      if (dot.color === 'white') {
+        doc.setDrawColor('#000000');
+        doc.setLineWidth(1.5 * scaleRef);
+        doc.circle(cx, cy, dotRadius * scaleRef, 'FD');
+      } else {
+        doc.circle(cx, cy, dotRadius * scaleRef, 'F');
+      }
+      if (dot.finger) {
+        const pdfFontSize =
+          dotRadius <= 6
+            ? dot.finger.length > 1
+              ? 5.2
+              : 6.5
+            : dot.finger.length > 1
+              ? 7
+              : 8.5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(pdfFontSize);
+        doc.setTextColor(dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff');
+        doc.text(dot.finger, cx, cy, { align: 'center', baseline: 'middle' });
+      }
+    };
+    let scaleRef = 1;
 
     for (let i = 0; i < state.count; i++) {
       const diagram = state.diagrams[i];
@@ -1203,6 +1284,7 @@
       const diagTop = cellY + 0.22;
       const diagAvailH = cellH - 0.22;
       const scale = Math.min((colW * 0.94) / svgWidth, diagAvailH / svgHeight);
+      scaleRef = scale;
       const drawW = svgWidth * scale;
       const ox = cellX + (colW - drawW) / 2;
       const oy = diagTop;
@@ -1212,23 +1294,21 @@
       // String names and O / X markers
       for (let s = 0; s < numStrings; s++) {
         const x = xStart + s * stringGap;
+        const om = getOpenMute(diagram, s);
 
-        if (labeled) {
+        if (!om && labeled) {
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(nameFontSize);
           doc.setTextColor('#111827');
           doc.text(inst.stringNames[s], px(x), py(18.5), { align: 'center' });
         }
 
-        const om = diagram.openMute[s];
-        if (om === 'O') {
-          doc.setDrawColor('#000000');
-          doc.setLineWidth(1.4 * scale);
-          doc.circle(px(x), py(omY), omRadius * scale, 'S');
-        } else if (om === 'X') {
+        if (om && om.type === 'O') {
+          drawPdfDot(px(x), py(omY), om);
+        } else if (om && om.type === 'X') {
           const d = omHalf;
           doc.setDrawColor('#000000');
-          doc.setLineWidth(1.5 * scale);
+          doc.setLineWidth(1.6 * scale);
           doc.line(px(x - d), py(omY - d), px(x + d), py(omY + d));
           doc.line(px(x + d), py(omY - d), px(x - d), py(omY + d));
         }
@@ -1286,30 +1366,7 @@
           if (!dot) continue;
 
           const cx = xStart + s * stringGap;
-          const hex = DOT_COLORS[dot.color] || DOT_COLORS.black;
-          doc.setFillColor(hex);
-          if (dot.color === 'white') {
-            doc.setDrawColor('#000000');
-            doc.setLineWidth(1.5 * scale);
-            doc.circle(px(cx), py(cy), dotRadius * scale, 'FD');
-          } else {
-            doc.circle(px(cx), py(cy), dotRadius * scale, 'F');
-          }
-
-          if (dot.finger) {
-            const pdfFontSize =
-              dotRadius <= 6
-                ? dot.finger.length > 1
-                  ? 5.2
-                  : 6.5
-                : dot.finger.length > 1
-                  ? 7
-                  : 8.5;
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(pdfFontSize);
-            doc.setTextColor(dot.color === 'white' || dot.color === 'yellow' ? '#000000' : '#ffffff');
-            doc.text(dot.finger, px(cx), py(cy), { align: 'center', baseline: 'middle' });
-          }
+          drawPdfDot(px(cx), py(cy), dot);
         }
       }
     }

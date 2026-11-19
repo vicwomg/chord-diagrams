@@ -424,6 +424,8 @@ body {
 .string-header-hit {
   fill: transparent;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
 
 .string-header-group:hover .string-label-text {
